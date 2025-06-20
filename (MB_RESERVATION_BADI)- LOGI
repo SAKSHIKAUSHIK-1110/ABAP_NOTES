@@ -1,0 +1,71 @@
+DATA :it_mchb TYPE STANDARD TABLE OF mchb.
+    DATA :wa_mchb TYPE mchb.
+
+    DATA :it_mard TYPE STANDARD TABLE OF mard.
+    DATA :wa_mard TYPE mard.
+
+    DATA :lv_labst TYPE labst.
+    DATA:i_resb TYPE resb.
+
+""""""""""""""""""" Sakshi """"""""""""""""""""
+DATA:lv_resb TYPE resb-bdmng.
+DATA:lv_qty TYPE resb-bdmng.
+
+DATA:lv_qty2 TYPE resb-bdmng.
+
+IF ( is_resb-bwart ='201' or is_resb-bwart ='311' ) AND is_resb-xloek IS INITIAL AND sy-tcode = 'MB21'.
+  SELECT SINGLE * FROM RESB INTO @DATA(LW_RESB)
+                            WHERE MATNR = @IS_RESB-MATNR
+                            AND  WERKS =  @IS_RESB-WERKS
+                            AND  LGORT =  @IS_RESB-LGORT
+                            AND  BWART IN ('201', '311')
+                            AND  KZEAR = ' '
+                            AND  XLOEK = ' '
+                            AND  XWAOK = 'X' .
+
+ IF SY-SUBRC = 0 .
+
+  SELECT SUM( bdmng ) FROM resb INTO @DATA(lv_bdmng)   WHERE matnr = @is_resb-matnr
+                                                           AND werks = @is_resb-werks
+                                                           AND lgort = @is_resb-lgort
+                                                           AND xloek = ' '
+                                                           AND kzear = ' '
+                                                           AND XWAOK = 'X' .
+
+  SELECT SUM( enmng ) FROM resb INTO @DATA(lv_enmng)   WHERE matnr = @is_resb-matnr
+                                                           AND werks = @is_resb-werks
+                                                           AND lgort = @is_resb-lgort
+                                                           AND xloek = ' '
+                                                           AND kzear = ' '
+                                                           AND xwaok = 'X' .
+
+   SELECT SUM( LABST ) FROM MARD INTO @DATA(W_LABST) WHERE MATNR = @IS_RESB-MATNR
+                                                     AND   WERKS = @IS_RESB-WERKS
+                                                     AND   LGORT = @IS_RESB-LGORT .
+
+   LV_RESB = LV_BDMNG - LV_ENMNG.   " A
+
+    IF lv_resb < 0 .
+       MESSAGE 'KINDLY CHECK QUANTITY' TYPE 'E'.
+    ENDIF.
+
+   LV_QTY = W_LABST - LV_RESB.      " B
+
+
+   IF LV_QTY <= 0.
+    MESSAGE ' RESERVATION NOT CREATED ' TYPE 'E' .
+   ELSE.
+    MESSAGE ' RESERVATION CREATED ' TYPE 'S'.
+   ENDIF .
+
+   IF IS_RESB-ERFMG > LV_QTY .
+       MESSAGE 'KINDLY CHECK QUANTITY' TYPE 'E'.
+   ENDIF.
+
+   IF w_labst < is_resb-erfmg.
+    MESSAGE 'QUANTITY LESS THAN ENTERED QUANTITY' TYPE 'E'.
+   ENDIF.
+
+ENDIF.
+
+ENDIF.

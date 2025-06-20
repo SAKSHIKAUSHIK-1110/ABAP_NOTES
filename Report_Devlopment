@@ -1,0 +1,336 @@
+REPORT zsales_report.
+
+TABLES : vbrk , vbrp , vbak.
+
+SELECTION-SCREEN: BEGIN OF BLOCK b1 .
+
+  SELECT-OPTIONS :  s_vbeln FOR vbrk-vbeln,
+                    s_fkdat FOR vbrp-fkdat_ana,
+                    s_fkart FOR vbrk-fkart,
+                    s_aubel FOR vbrp-aubel,
+                    s_erdat FOR vbak-erdat.
+
+SELECTION-SCREEN: END OF BLOCK b1.
+
+TYPES : BEGIN OF struc1 ,
+          vbeln           TYPE vbrk-vbeln,
+          posnr           TYPE vbrp-posnr,
+          aubel           TYPE vbrp-aubel,
+          kzwi1           TYPE vbrp-kzwi1,
+          fkimg           TYPE vbrp-fkimg,
+          posnr2          TYPE vbap-posnr,
+*          kzwi1          TYPE vbap-kzwi1,
+          kwmeng          TYPE vbap-kwmeng,
+          arktx           TYPE vbap-arktx,
+          matnr           TYPE vbap-matnr,
+          arktx2          TYPE vbap-arktx,
+          vrkme           TYPE vbap-vrkme,
+*          kwmeng          TYPE vbap-kwmeng,
+          kwert           TYPE prcd_elements-kwert,
+          fklmg           TYPE vbrp-fklmg,
+          kbetr           TYPE prcd_elements-kbetr,
+          kursk           TYPE vbrp-kursk,
+          vtweg_ana       TYPE vbrp-vtweg_ana,
+          ntgew           TYPE vbrp-ntgew,
+          brgew           TYPE vbrp-brgew,
+          matkl           TYPE mara-matkl,
+          werks           TYPE vbrp-werks,
+          aland           TYPE vbrp-aland,
+          lgort           TYPE lips-lgort,
+          fkdat           TYPE vbrk-fkdat,
+          ernam           TYPE vbrk-ernam,
+          erdat           TYPE vbrk-erdat,
+          fkart           TYPE vbrk-fkart,
+          aubel2          TYPE vbrp-aubel,
+          vrkme2          TYPE vbrp-vrkme,
+          erdat2          TYPE vbak-erdat,
+          ernam2          TYPE vbak-ernam,
+          erzet           TYPE vbak-erzet,
+          cmtd_deliv_date TYPE vbap-cmtd_deliv_date,
+          kwert2          TYPE prcd_elements-kwert,
+          kwert3          TYPE prcd_elements-kwert,
+          netwr           TYPE vbrp-netwr,
+          netwr2          TYPE vbrp-netwr,
+          prsdt           TYPE  vbrp-prsdt,
+          difprc          TYPE string,
+          kbetrn          TYPE prcd_elements-kbetr,
+          so_price        TYPE vbap-kwmeng,
+          per_rate        TYPE vbrp-fkimg,
+        END   OF struc1.
+
+DATA: ltfinal  TYPE TABLE OF struc1,
+      wafinal  TYPE struc1,
+      ltfields TYPE slis_t_fieldcat_alv,
+      wafields TYPE slis_fieldcat_alv.
+
+START-OF-SELECTION.
+
+  PERFORM getdata.
+  PERFORM fieldcat USING '1'    'VBELN'            'ITFINAL'   'Bill. Doc.'.
+  PERFORM fieldcat USING '2'    'POSNR'            'ITFINAL'   'Item'.
+  PERFORM fieldcat USING '3'    'AUBEL'            'ITFINAL'   'Sales Doc.'.
+  PERFORM fieldcat USING '4'    'POSNR2'           'ITFINAL'   'Item'.
+  PERFORM fieldcat USING '5'    'ARKTX'            'ITFINAL'   'SOITEM.'.
+  PERFORM fieldcat USING '6'    'MATNR'            'ITFINAL'   'Material.'.
+  PERFORM fieldcat USING '7'    'ARKTX2'           'ITFINAL'   'Item Description'.
+  PERFORM fieldcat USING '8'    'VRKME'           'ITFINAL'    'Unit Of Measurement-Sales'.
+  PERFORM fieldcat USING '9'    'KWMENG'           'ITFINAL'   'SO Qty'.
+  PERFORM fieldcat USING '10'    'SO_PRICE'            'ITFINAL'   'SO price'. "kwert->kbetrn
+  PERFORM fieldcat USING '11'   'FKLMG'            'ITFINAL'   'Billed Quantity'.
+  PERFORM fieldcat USING '12'   'PER_RATE'            'ITFINAL'   'Per/P/Rate'.  " kbetr
+  PERFORM fieldcat USING '13'   'DIFPRC'                'ITFINAL'   'Diff Price'."CHANGE
+  PERFORM fieldcat USING '14'   'KURSK'            'ITFINAL'   'Exch.Rate'.
+  PERFORM fieldcat USING '15'   'KWERT3'           'ITFINAL'   'Inv.Amt in INR'.
+  PERFORM fieldcat USING '16'   'KWERT2'           'ITFINAL'   'Amt in Curr'.
+  PERFORM fieldcat USING '17'   'NETWR'            'ITFINAL'   'Inv.Net Value in Curr'.
+  PERFORM fieldcat USING '18'   'NETWR2'           'ITFINAL'   'Net Value INR'.
+  PERFORM fieldcat USING '19'   'VTWEG_ANA'        'ITFINAL'   'DstC'.
+  PERFORM fieldcat USING '20'   'NTGEW'            'ITFINAL'   'Net weight'.
+  PERFORM fieldcat USING '21'   'BRGEW'            'ITFINAL'   'WUn'.
+  PERFORM fieldcat USING '22'   'PRSDT'            'ITFINAL'   'Pricing Dt'."CHANGE
+  PERFORM fieldcat USING '23'   'MATKL'            'ITFINAL'   'Matl Group'.
+  PERFORM fieldcat USING '24'   'WERKS'            'ITFINAL'   'Plant'.
+  PERFORM fieldcat USING '25'   'ALAND'            'ITFINAL'   'Ctry'.
+  PERFORM fieldcat USING '26'   'LGORT'            'ITFINAL'   'SLoc'.
+  PERFORM fieldcat USING '27'   'FKDAT'            'ITFINAL'   'Billing Date'.
+  PERFORM fieldcat USING '28'   'ERNAM'            'ITFINAL'   'Billing Created by'.
+  PERFORM fieldcat USING '29'   'ERDAT'            'ITFINAL'   'Billing Creation Time'.
+  PERFORM fieldcat USING '30'   'FKART'            'ITFINAL'   'Billing Type'.
+  PERFORM fieldcat USING '31'   'VRKME2'           'ITFINAL'   'Unit Of Measurement-Invoice'.
+  PERFORM fieldcat USING '32'   'AUBEL2'           'ITFINAL'   'SO'.
+  PERFORM fieldcat USING '33'   'ERDAT2'           'ITFINAL'   'SO Date'.
+  PERFORM fieldcat USING '34'   'ERNAM2'           'ITFINAL'   'SO Created by'.
+  PERFORM fieldcat USING '35'   'ERZET'            'ITFINAL'   'SO Creation Time'.
+  PERFORM fieldcat USING '36'   'CMTD_DELIV_DATE'  'ITFINAL'   'Sale Order Req Dilivery Date'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK                 = ' '
+*     I_BYPASSING_BUFFER                = ' '
+*     I_BUFFER_ACTIVE                   = ' '
+*     I_CALLBACK_PROGRAM                = ' '
+*     I_CALLBACK_PF_STATUS_SET          = ' '
+*     I_CALLBACK_USER_COMMAND           = ' '
+*     I_CALLBACK_TOP_OF_PAGE            = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME                  =
+*     I_BACKGROUND_ID                   = ' '
+*     I_GRID_TITLE  =
+*     I_GRID_SETTINGS                   =
+*     IS_LAYOUT     =
+      it_fieldcat   = ltfields
+*     IT_EXCLUDING  =
+*     IT_SPECIAL_GROUPS                 =
+*     IT_SORT       =
+*     IT_FILTER     =
+*     IS_SEL_HIDE   =
+*     I_DEFAULT     = 'X'
+*     I_SAVE        = ' '
+*     IS_VARIANT    =
+*     IT_EVENTS     =
+*     IT_EVENT_EXIT =
+*     IS_PRINT      =
+*     IS_REPREP_ID  =
+*     I_SCREEN_START_COLUMN             = 0
+*     I_SCREEN_START_LINE               = 0
+*     I_SCREEN_END_COLUMN               = 0
+*     I_SCREEN_END_LINE                 = 0
+*     I_HTML_HEIGHT_TOP                 = 0
+*     I_HTML_HEIGHT_END                 = 0
+*     IT_ALV_GRAPHICS                   =
+*     IT_HYPERLINK  =
+*     IT_ADD_FIELDCAT                   =
+*     IT_EXCEPT_QINFO                   =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+*     O_PREVIOUS_SRAL_HANDLER           =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER           =
+*     ES_EXIT_CAUSED_BY_USER            =
+    TABLES
+      t_outtab      = ltfinal
+    EXCEPTIONS
+      program_error = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+FORM getdata.
+
+  SELECT a~vbeln , a~posnr , a~aubel , a~matnr , a~vrkme ,
+    a~fklmg , a~kursk , a~vtweg_ana , a~ntgew , a~brgew , a~werks , a~aland , a~vgbel , a~netwr , a~prsdt , a~kzwi1 , a~fkimg " 17.02.2025
+    FROM vbrp AS a INNER JOIN vbrk AS b ON a~vbeln = b~vbeln
+    INNER JOIN vbak AS c ON a~aubel = c~vbeln
+*    INNER JOIN vbap AS d ON a~aubel = c~vbeln
+    WHERE a~vbeln IN @s_vbeln
+    AND c~erdat IN @s_erdat
+    AND b~fkart IN @s_fkart
+    AND b~fkdat IN @s_fkdat
+    AND a~aubel IN @s_aubel
+    INTO TABLE @DATA(it_vbrp).
+
+**  select
+**  from vbrp
+**  fields vbeln , posnr , aubel , matnr , FKLMG , kursk , VTWEG_ANA , NTGEW , BRGEW , werks , aland , vgbel , NETWR , PRSDT
+**  where vbeln in @S_VBELN
+**  into table @data(it_vbrp).
+*  where vbeln in @S_VBELN.
+
+
+  IF it_vbrp IS NOT INITIAL.
+
+    SELECT
+    FROM vbap
+    FIELDS posnr , arktx , matnr , vbeln   , kwmeng , cmtd_deliv_date , kzwi1 , vrkme
+    FOR ALL ENTRIES IN @it_vbrp
+    WHERE vbeln = @it_vbrp-aubel
+    AND   matnr = @it_vbrp-matnr
+*    AND   posnr = @it_vbrp-posnr
+    INTO TABLE @DATA(it_vbap).
+
+    IF it_vbap IS NOT INITIAL.
+
+      SELECT
+      FROM mara
+      FIELDS matkl , matnr
+      FOR ALL ENTRIES IN @it_vbap
+      WHERE matnr = @it_vbap-matnr
+      INTO TABLE @DATA(it_mara).
+
+    ENDIF.
+
+    SELECT
+    FROM vbak
+    FIELDS knumv , erdat ,  ernam , erzet  , vbeln
+    FOR ALL ENTRIES IN @it_vbrp
+    WHERE vbeln = @it_vbrp-aubel
+    INTO TABLE @DATA(it_vbak).
+
+    IF it_vbak IS NOT INITIAL.
+
+      SELECT
+      FROM prcd_elements
+      FIELDS  kwert ,  kbetr , knumv , kschl, kposn
+      FOR ALL ENTRIES IN @it_vbak
+      WHERE knumv = @it_vbak-knumv
+      AND   kschl IN ('ZPR0','ZEXP','ZTRF','ZSCV','ZMAN','ZSED','ZSEE')
+      INTO TABLE @DATA(itprcdelements).
+
+    ENDIF.
+
+    SELECT
+    FROM lips
+    FIELDS lgort ,  vbeln , posnr ,  matnr
+*      for ALL ENTRIES IN @it_vbrp
+*      where vbeln = @it_vbrp-vgbel
+*      and   posnr = @it_vbrp-posnr
+*      and   matnr = @it_vbrp-matnr
+    WHERE   lfimg NE ''
+    INTO TABLE @DATA(it_lips).
+
+    SELECT
+    FROM vbrk
+    FIELDS fkdat , ernam , erdat , fkart , vbeln , knumv
+    FOR ALL ENTRIES IN @it_vbrp
+    WHERE vbeln = @it_vbrp-vbeln
+    INTO TABLE @DATA(it_vbrk).
+
+    IF it_vbrk IS NOT INITIAL.
+
+
+      SELECT
+      FROM prcd_elements
+      FIELDS kwert , knumv , kschl, kposn, kbetr
+      FOR ALL ENTRIES IN @it_vbrk
+      WHERE knumv = @it_vbrk-knumv
+      AND   kschl IN ('ZPR0' , 'ZEXP')
+      INTO TABLE @DATA(it_prcdelements).
+
+
+    ENDIF.
+
+
+  ENDIF.
+
+
+  LOOP AT it_vbrp INTO DATA(wa_vbrp).
+    wafinal-vbeln     = wa_vbrp-vbeln.
+    wafinal-vrkme2    = wa_vbrp-vrkme.
+    wafinal-posnr     = wa_vbrp-posnr .
+    wafinal-aubel     = wa_vbrp-aubel .
+    wafinal-fklmg     = wa_vbrp-fklmg.
+    wafinal-kursk     = wa_vbrp-kursk.
+    wafinal-vtweg_ana = wa_vbrp-vtweg_ana.
+    wafinal-ntgew     = wa_vbrp-ntgew.
+    wafinal-brgew     = wa_vbrp-brgew.
+    wafinal-werks     = wa_vbrp-werks.
+    wafinal-aland     = wa_vbrp-aland.
+    wafinal-aubel2     = wa_vbrp-aubel.
+    wafinal-netwr     =  wa_vbrp-netwr.
+    wafinal-netwr2     =  wa_vbrp-netwr * wa_vbrp-kursk.
+    wafinal-prsdt     = wa_vbrp-prsdt.
+    wafinal-vrkme2     = wa_vbrp-vrkme.
+    wafinal-per_rate     = wa_vbrp-kzwi1 / wa_vbrp-fkimg.
+
+    READ TABLE it_vbap INTO DATA(wa_vbap) WITH KEY vbeln = wa_vbrp-aubel matnr = wa_vbrp-matnr.   " posnr = wa_vbrp-posnr.
+    wafinal-vrkme = wa_vbap-vrkme .
+    wafinal-arktx = wa_vbap-arktx.
+    wafinal-posnr2 = wa_vbap-posnr.
+    wafinal-matnr = wa_vbap-matnr.
+    wafinal-arktx2 = wa_vbap-arktx.
+    wafinal-kwmeng = wa_vbap-kwmeng.
+    wafinal-cmtd_deliv_date = wa_vbap-cmtd_deliv_date.
+    wafinal-so_price = wa_vbap-kzwi1 / wa_vbap-kwmeng .
+
+    SELECT SINGLE mseh3 FROM t006A INTO wafinal-vrkme WHERE msehi = wa_vbap-vrkme AND spras = 'E'.
+    SELECT SINGLE mseh3 FROM t006A INTO wafinal-vrkme2 WHERE msehi = wa_vbrp-vrkme AND spras = 'E'.
+
+    "Difference Price
+    wafinal-difprc = wafinal-per_rate - wafinal-so_price .
+
+    READ TABLE it_mara INTO DATA(wa_mara) WITH KEY matnr = wa_vbap-matnr .
+    wafinal-matkl = wa_mara-matkl.
+
+    READ TABLE it_lips INTO DATA(wa_lips) WITH KEY vbeln = wa_vbrp-vgbel." posnr = wa_vbrp-posnr matnr = wa_vbrp-matnr .
+    wafinal-lgort = wa_lips-lgort.
+
+    READ TABLE it_vbrk INTO DATA(wa_vbrk) WITH KEY vbeln = wa_vbrp-vbeln.
+    wafinal-fkdat = wa_vbrk-fkdat.
+    wafinal-ernam = wa_vbrk-ernam.
+    wafinal-erdat = wa_vbrk-erdat.
+    wafinal-fkart = wa_vbrk-fkart.
+
+    READ TABLE it_prcdelements INTO DATA(wa_prcdelements) WITH KEY knumv = wa_vbrk-knumv kposn = wa_vbrp-posnr.
+    wafinal-kwert2 = wa_prcdelements-kwert.
+    wafinal-kwert3 = wa_prcdelements-kwert * wa_vbrp-kursk.
+
+
+    READ TABLE it_vbak INTO DATA(wa_vbak) WITH KEY vbeln = wa_vbrp-aubel.
+    wafinal-erdat2 = wa_vbak-erdat.
+    wafinal-ernam2  = wa_vbak-ernam.
+    wafinal-erzet  = wa_vbak-erzet.
+
+    READ TABLE itprcdelements  INTO DATA(wa_prcd_elements) WITH KEY knumv = wa_vbak-knumv kposn = wa_vbrp-posnr.
+    wafinal-kwert =  wa_prcd_elements-kwert.
+    wafinal-kbetr =  wa_prcdelements-kbetr.    "wa_prcd_elements-kbetr.
+
+*    wafinal-difprc = wafinal-kwert3 - wa_prcd_elements-kwert.   "11.02.2024
+    wafinal-kbetrn = wafinal-kbetr.
+*    wafinal-difprc = wafinal-kbetrn - wa_prcdelements-kbetr.
+
+    APPEND wafinal TO ltfinal.
+    CLEAR wafinal.
+
+  ENDLOOP.
+ENDFORM.
+FORM  fieldcat  USING col_pos  fieldname tabname seltext_l.
+  CLEAR wafields.
+  wafields-col_pos   = col_pos   .
+  wafields-fieldname = fieldname .
+  wafields-tabname   = tabname   .
+  wafields-seltext_l = seltext_l .
+  APPEND wafields TO ltfields.
+  CLEAR wafields.
+ENDFORM.

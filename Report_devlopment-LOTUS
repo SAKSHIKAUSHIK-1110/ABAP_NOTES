@@ -1,0 +1,202 @@
+*& (REPORT – READ TEXT ETC )
+
+REPORT zfitext.
+
+TABLES: vbrk ,bkpf .
+
+TYPES :BEGIN OF zstruc,
+         belnr TYPE vbrk-belnr,
+         blart TYPE vbrk-blart,
+         budat TYPE bkpf-budat,
+         vbeln TYPE vbrk-vbeln,
+         fkart TYPE vbrk-fkart,
+         gjahr TYPE vbrk-gjahr,
+         bktxt TYPE ztxt,
+       END OF zstruc.
+
+DATA : it_final TYPE TABLE OF zstruc,
+       wa_final TYPE zstruc.
+
+DATA : s_name TYPE thead-tdname.
+DATA: it_lines TYPE TABLE OF tline,
+      wa_lines TYPE tline.
+
+DATA: gr_alv TYPE REF TO cl_salv_table.
+DATA: lr_columns TYPE REF TO cl_salv_columns_table,
+      lr_column  TYPE REF TO cl_salv_column_table.
+
+DATA lo_layout_settings   TYPE REF TO cl_salv_layout.
+DATA lo_layout_key        TYPE        salv_s_layout_key.
+
+SELECT-OPTIONS : s_belnr FOR vbrk-belnr ,
+                 s_vbeln FOR vbrk-vbeln ,
+                 s_blart FOR vbrk-blart NO-EXTENSION,
+                 s_fkart FOR vbrk-fkart NO-EXTENSION,
+                 s_budat FOR bkpf-budat NO-EXTENSION,
+                 s_bukrs FOR bkpf-bukrs NO-EXTENSION,
+                 s_gjahr FOR vbrk-gjahr NO-EXTENSION.
+
+START-OF-SELECTION.
+  SELECT bukrs,
+         belnr,
+         blart,
+         vbeln,
+         fkart,
+         fkdat,
+         gjahr
+  FROM vbrk INTO TABLE @DATA(it_vbrk)
+  WHERE belnr IN @s_belnr
+  AND   vbeln IN @s_vbeln
+  AND   fkdat IN @s_budat
+  AND   fkart IN @s_fkart
+  AND   gjahr IN @s_gjahr.
+  SORT it_vbrk BY vbeln.
+  IF s_gjahr IS NOT INITIAL.
+    SELECT bukrs,
+           belnr,
+           blart,
+           budat,
+           bktxt,
+           gjahr
+    FROM bkpf INTO TABLE @DATA(it_bkpf)
+    WHERE budat IN @s_budat
+    AND   blart IN @s_blart
+    AND   belnr IN @s_belnr
+    AND   bukrs IN @s_bukrs
+    AND   gjahr IN @s_gjahr
+    AND   blart IN ('DG' , 'DR') .
+  ENDIF.
+  SORT it_bkpf BY belnr gjahr bukrs.
+
+  LOOP AT it_vbrk INTO DATA(wa_vbrk).
+    wa_final-belnr = wa_vbrk-belnr.
+    wa_final-blart = wa_vbrk-blart.
+    wa_final-vbeln = wa_vbrk-vbeln.
+    wa_final-fkart = wa_vbrk-fkart.
+    wa_final-budat = wa_vbrk-fkdat.
+    wa_final-gjahr = wa_vbrk-gjahr.
+
+    REFRESH it_lines.
+    CLEAR s_name.
+    s_name = wa_final-vbeln.
+
+    CALL FUNCTION 'READ_TEXT'
+      EXPORTING
+*       client                  = sy-mandt
+        id                      = '0002'
+        language                = 'E'
+        name                    = s_name
+        object                  = 'VBBK'
+      TABLES
+        lines                   = it_lines
+      EXCEPTIONS
+        id                      = 1
+        language                = 2
+        name                    = 3
+        not_found               = 4
+        object                  = 5
+        reference_check         = 6
+        wrong_access_to_archive = 7
+        OTHERS                  = 8.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+    LOOP AT it_lines INTO wa_lines .
+      CONCATENATE wa_final-bktxt wa_lines-tdline INTO wa_final-bktxt.
+*      CONCATENATE wa_lines-tdline TO wa_final-bktxt seperated by space.
+      CLEAR wa_lines .
+    ENDLOOP.
+    APPEND wa_final TO it_final.
+    CLEAR wa_final.
+  ENDLOOP.
+
+  LOOP AT it_bkpf INTO DATA(wa_bkpf) WHERE gjahr IN s_gjahr AND budat IN s_budat AND bukrs IN s_bukrs .   "blart IN ( 'DG', 'DR' )
+    APPEND INITIAL LINE TO it_final ASSIGNING FIELD-SYMBOL(<fgg>).
+    <fgg>-belnr = wa_bkpf-belnr.
+    <fgg>-budat = wa_bkpf-budat.
+*    <fgg>-bktxt = wa_bkpf-bktxt.
+    <fgg>-blart = wa_bkpf-blart.
+    <fgg>-gjahr = wa_bkpf-gjahr.
+    CLEAR : s_name, it_lines.
+    s_name = wa_bkpf-bukrs && wa_bkpf-belnr && wa_bkpf-gjahr.
+    CALL FUNCTION 'READ_TEXT'
+      EXPORTING
+*       client                  = sy-mandt
+        id                      = '0002'
+        language                = 'E'
+        name                    = s_name
+        object                  = 'BELEG'
+      TABLES
+        lines                   = it_lines
+      EXCEPTIONS
+        id                      = 1
+        language                = 2
+        name                    = 3
+        not_found               = 4
+        object                  = 5
+        reference_check         = 6
+        wrong_access_to_archive = 7
+        OTHERS                  = 8.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+    LOOP AT it_lines INTO wa_lines .
+      CONCATENATE   <fgg>-bktxt wa_lines-tdline INTO <fgg>-bktxt .
+*      <fgg>-bktxt = wa_lines-tdline.
+      CLEAR wa_lines.
+      CLEAR <fgg> .
+
+    ENDLOOP.
+  ENDLOOP.
+
+  TRY.
+      CALL METHOD cl_salv_table=>factory
+        EXPORTING
+          list_display = if_salv_c_bool_sap=>false
+*         r_container  =
+*         container_name =
+        IMPORTING
+          r_salv_table = gr_alv
+        CHANGING
+          t_table      = it_final.
+* CATCH cx_salv_msg .
+      lr_columns = gr_alv->get_columns( ).
+
+      lo_layout_settings   = gr_alv->get_layout( ).
+      lo_layout_key-report = sy-repid.
+      lo_layout_settings->set_key( lo_layout_key ).
+
+      gr_alv->get_functions( )->set_all(
+      value = if_salv_c_bool_sap=>true ).
+
+      lr_column ?= lr_columns->get_column( 'BELNR' ).
+      lr_column->set_long_text( 'Accounting Doc. No.' ) .
+      lr_column->set_output_length( '16' ).
+
+      lr_column ?= lr_columns->get_column( 'BLART' ).
+      lr_column->set_long_text( 'A/C Doc Type' ) .
+      lr_column->set_output_length( '12' ).
+
+      lr_column ?= lr_columns->get_column( 'BUDAT' ).
+      lr_column->set_long_text( 'Posting Date' ) .
+      lr_column->set_output_length( '10' ).
+
+      lr_column ?= lr_columns->get_column( 'VBELN' ).
+      lr_column->set_long_text( 'Billing Doc. No.' ) .
+      lr_column->set_output_length( '12' ).
+
+      lr_column ?= lr_columns->get_column( 'FKART' ).
+      lr_column->set_long_text( 'Billing Doc.Type' ) .
+      lr_column->set_output_length( '12' ).
+
+      lr_column ?= lr_columns->get_column( 'GJAHR' ).
+      lr_column->set_long_text( 'Fiscal Year' ) .
+      lr_column->set_output_length( '8' ).
+
+      lr_column ?= lr_columns->get_column( 'BKTXT' ).
+      lr_column->set_long_text( 'Header Text' ).
+      lr_column->set_output_length( '20' ).
+
+      gr_alv->display( ).
+
+  ENDTRY.

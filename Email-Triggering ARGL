@@ -1,0 +1,1832 @@
+REPORT ZCONSUMPTION_REPORT.
+
+TABLES : MSEG,MARA,MAKT,T134.
+
+DATA : BIN_FILESIZE TYPE CHAR10.
+DATA : IT_TLINE TYPE TABLE OF TLINE.
+
+DATA : REF_GRID TYPE REF TO CL_GUI_ALV_GRID.
+DATA : REF_GRID2 TYPE REF TO CL_GUI_ALV_GRID.
+DATA : REF_GRID3 TYPE REF TO CL_GUI_ALV_GRID.
+DATA: LR_TABLE1 TYPE REF TO CL_SALV_TABLE.
+DATA: LR_TABLE TYPE REF TO CL_SALV_TABLE.
+DATA : LO_COLUMN  TYPE REF TO CL_SALV_COLUMN. . .
+DATA : SD_FIELDCAT  TYPE STANDARD TABLE OF LVC_S_FCAT, "Field catalog
+       WSD_FIELDCAT TYPE LVC_S_FCAT,
+       SD_VARIANT   TYPE DISVARIANT,
+       OSD_DOCKING  TYPE REF TO CL_GUI_DOCKING_CONTAINER, "Docking Container
+       OSD_DOCKING2 TYPE REF TO CL_GUI_DOCKING_CONTAINER, "Docking Container
+       OSD_DOCKING3 TYPE REF TO CL_GUI_DOCKING_CONTAINER, "Docking Container
+       OSD_GRID     TYPE REF TO CL_GUI_ALV_GRID, "Grid.
+       OSD_GRID2    TYPE REF TO CL_GUI_ALV_GRID, "Grid.
+       OSD_GRID3    TYPE REF TO CL_GUI_ALV_GRID. "Grid.
+DATA: ALV_CONTAINER TYPE REF TO CL_GUI_CUSTOM_CONTAINER.
+DATA: ALV_CONTAINER2 TYPE REF TO CL_GUI_CUSTOM_CONTAINER.
+DATA: ALV_CONTAINER3 TYPE REF TO CL_GUI_CUSTOM_CONTAINER.
+DATA : T_PBO TYPE CHAR1 .
+DATA: IT_TOOLBAR TYPE UI_FUNCTIONS,
+      FS_FUNC    TYPE UI_FUNC.
+
+TYPES : BEGIN OF TY_FINAL,
+          POSTING_DAT             TYPE BUDAT,
+          DOC_NO                  TYPE MSEG-MBLNR,
+          MATERIAL                TYPE MSEG-MATNR,
+          MAT_DES                 TYPE MAKT-MAKTX,
+          MAT_GROUP               TYPE MARA-MATKL,
+          MAT_TYP                 TYPE MARA-MTART,
+          GRP_DESP                TYPE T134T-MTBEZ,
+          UOM                     TYPE MARA-MEINS,
+          COST_CENTRE             TYPE KOSTL,
+          PROFIT_CENTRE           TYPE PRCTR,
+          STORE_LOC               TYPE MSEG-LGORT,
+          MOV_TYP                 TYPE MSEG-BWART,
+          CONSUME_QTY             TYPE MSEG-MENGE,
+          CONSUME_VALUE           TYPE MSEG-DMBTR,
+          CLOSE_QTY               TYPE MSEG-MENGE,
+          CLOSE_VALUE             TYPE MSEG-DMBTR,
+          PRO_QTY                 TYPE MSEG-MENGE,
+          SALE_QTY                TYPE MSEG-MENGE,
+          COST_CENTRE_DESCRIPTION TYPE CSKT-LTEXT,
+          AMOUNT1                 TYPE MSEG-DMBTR,
+          AMOUNT2                 TYPE MSEG-DMBTR,
+          AMOUNT3                 TYPE MSEG-DMBTR,
+          AMOUNT4                 TYPE MSEG-DMBTR,
+          AMOUNT5                 TYPE MSEG-DMBTR,    " add on 16.1.24
+          AMOUNT6                 TYPE MSEG-DMBTR,    " add on 16.1.24
+          PLANT                   TYPE MSEG-WERKS,
+*          grp_desp                TYPE t134t-mtbez,
+        END OF TY_FINAL.
+
+DATA : IT_FINAL TYPE TABLE OF TY_FINAL,
+       WA_FINAL TYPE  TY_FINAL.
+DATA : IT_FINAL1 TYPE TABLE OF TY_FINAL,
+       WA_FINAL1 TYPE  TY_FINAL.
+DATA : IT_FINAL_CD TYPE TABLE OF TY_FINAL,
+       WA_FINAL_CD TYPE  TY_FINAL.
+
+DATA : IT_FCAT TYPE SLIS_T_FIELDCAT_ALV,
+       WA_FCAT TYPE SLIS_FIELDCAT_ALV,
+       IT_TOP  TYPE SLIS_T_LISTHEADER,
+       WA_TOP  TYPE SLIS_LISTHEADER.
+
+DATA : IT_SORT TYPE SLIS_T_SORTINFO_ALV,
+       WA_SORT LIKE LINE OF IT_SORT.
+
+DATA : DAT  TYPE D,
+       DAT1 TYPE D,
+       WO   TYPE WERKS_D,
+       WO1  TYPE WERKS_D.
+
+DATA : NAME  TYPE VRM_ID,
+       LIST  TYPE VRM_VALUES,
+       VALUE LIKE LINE OF LIST.
+**Start****add by arvind ******30.05.2022********
+DATA : QTY_201 TYPE MSEG-DMBTR,
+       QTY_202 TYPE MSEG-DMBTR,
+       QTY_261 TYPE MSEG-DMBTR,
+       QTY_262 TYPE MSEG-DMBTR,
+       QTY_543 TYPE MSEG-DMBTR,
+       QTY_544 TYPE MSEG-DMBTR,
+       TOT_01  TYPE MSEG-DMBTR,
+       TOT_61  TYPE MSEG-DMBTR,
+       TOT_43  TYPE MSEG-DMBTR,
+       F_TOT   TYPE MSEG-DMBTR.
+**End****add by arvind ******30.05.2022********
+
+
+SELECTION-SCREEN BEGIN OF BLOCK A WITH FRAME TITLE TEXT-001.
+  SELECT-OPTIONS:
+  BUDAT FOR MSEG-BUDAT_MKPF  ,
+  BWART FOR MSEG-BWART NO-EXTENSION NO INTERVALS,
+  WERKS FOR MSEG-WERKS ,
+  MTART FOR MARA-MTART NO-EXTENSION NO INTERVALS,
+  MATKL FOR MARA-MATKL NO-EXTENSION NO INTERVALS,
+  KOSTL FOR MSEG-KOSTL.       "M Deepak 18.07.24
+SELECTION-SCREEN END OF BLOCK A.
+SELECTION-SCREEN BEGIN OF BLOCK B WITH FRAME TITLE TEXT-001.
+  PARAMETERS : R1 RADIOBUTTON GROUP A USER-COMMAND SS DEFAULT 'X',
+               R2 RADIOBUTTON GROUP A,
+               R3 RADIOBUTTON GROUP A.
+SELECTION-SCREEN END OF BLOCK B.
+
+"" SK~12.02.2025
+SELECTION-SCREEN BEGIN OF BLOCK C WITH FRAME TITLE TEXT-001.
+  PARAMETERS: P_MAIL AS CHECKBOX .
+SELECTION-SCREEN END OF BLOCK C.
+
+SELECT-OPTIONS:
+  CD_BUDAT FOR MSEG-BUDAT_MKPF  MODIF ID SK .
+*PARAMETERS : s_mon(2) AS LISTBOX VISIBLE LENGTH 10 MODIF ID sk .
+*PARAMETERS : s_year type gjahr MODIF ID sk MATCHCODE OBJECT GJAHR .
+
+AT SELECTION-SCREEN OUTPUT .
+  IF R3 = 'X' .
+    LOOP AT SCREEN .
+      IF SCREEN-GROUP1 = 'SK' .
+        SCREEN-ACTIVE = 1 .
+      ENDIF .
+      MODIFY SCREEN .
+    ENDLOOP .
+
+**    DATA : values TYPE  vrm_values, w_val TYPE vrm_value .
+**    DATA : ll TYPE char2 .
+**    REFRESH : values . CLEAR :  w_val , ll .
+**    DO 12 TIMES .
+**      ll = ll + 1 .
+**      ll = |{ ll ALPHA = IN }| .
+**      w_val-key = ll .
+**      w_val-text = ll .
+**      APPEND w_val TO values .
+**    ENDDO  .
+**
+**    CALL FUNCTION 'VRM_SET_VALUES'
+**      EXPORTING
+**        id              = 'S_MON'
+**        values          = values
+**      EXCEPTIONS
+**        id_illegal_name = 1
+**        OTHERS          = 2.
+
+
+
+  ELSE .
+    LOOP AT SCREEN  .
+      IF SCREEN-GROUP1 = 'SK' .
+        SCREEN-ACTIVE = 0 .
+        SCREEN-INPUT = 0 .
+      ENDIF .
+      MODIFY SCREEN .
+    ENDLOOP .
+  ENDIF  .
+
+AT SELECTION-SCREEN ON BWART .
+  BWART = BWART+3.
+  IF BWART IS NOT INITIAL.
+    IF BWART EQ '201' OR BWART EQ '202' OR BWART EQ '261' OR BWART EQ '262' .
+    ELSE.
+      MESSAGE 'Movement Type must be 201 or 202 or 261 or 262' TYPE 'E'.
+    ENDIF.
+  ENDIF.
+
+START-OF-SELECTION.
+
+
+  IF R3 = 'X' AND ( CD_BUDAT IS INITIAL ) .
+    MESSAGE 'Please enter comparitive date ' TYPE 'S' DISPLAY LIKE 'E' .
+    LEAVE TO CURRENT TRANSACTION .
+  ENDIF .
+
+  IF R1 = 'X' OR R2 = 'X' .
+    PERFORM : GET_DATA USING 'R1' .
+    PERFORM CREATE_FCAT.
+
+    IF P_MAIL = 'X'.
+      PERFORM SEND_EMAIL.                         "SK~17.01.2025
+    ENDIF.
+    PERFORM DISPLAY_DATA.
+
+
+  ELSEIF R3 = 'X' .
+    PERFORM : GET_DATA USING 'R1'.
+    PERFORM CREATE_FCAT.
+    PERFORM : GET_DATA USING 'R3'.
+    PERFORM : GET_DATA USING 'CD'.
+    FREE : REF_GRID .
+
+    IF REF_GRID IS INITIAL.
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+        IMPORTING
+          E_GRID = REF_GRID.
+    ENDIF.
+
+    IF NOT REF_GRID IS INITIAL.
+      CALL METHOD REF_GRID->CHECK_CHANGED_DATA.
+    ENDIF.
+    CALL SCREEN 0777  .
+  ENDIF .
+
+*  PERFORM build_layout.
+
+  "*&---------------------------------------------------------------------*
+*& Form GET_DATA
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM GET_DATA USING RB .
+  .
+  IF RB = 'R3' .
+    DATA : DAY_IN            TYPE  SY-DATUM, LAST_DAY_OF_MONTH TYPE SY-DATUM .
+    REFRESH : BUDAT[] .
+
+    BUDAT[] = CD_BUDAT[] .
+
+  ELSEIF RB = 'R1' AND R3 = '' .
+
+    IF SY-BATCH = 'X' .
+
+      REFRESH : BUDAT .
+      BUDAT-LOW = |{ SY-DATUM+0(6) }01| .
+      BUDAT-HIGH = SY-DATUM - 1 .
+      BUDAT-SIGN = 'I'.
+      BUDAT-OPTION = 'BT'.
+      APPEND BUDAT .
+    ENDIF .
+
+  ELSEIF RB = 'CD' .
+
+    LOOP AT IT_FINAL INTO DATA(W_FFX) .
+      MOVE-CORRESPONDING W_FFX TO WA_FINAL_CD .
+**      wa_final_cd-mat_typ = w_ffx-mat_typ .
+**      wa_final_cd-mat_des = w_ffx-mat_des .
+      READ TABLE IT_FINAL1 INTO DATA(W_FFX1) WITH KEY MAT_TYP = W_FFX-MAT_TYP .
+      IF SY-SUBRC = 0 .
+        WA_FINAL_CD-CONSUME_QTY = W_FFX-CONSUME_QTY - W_FFX1-CONSUME_QTY .
+        WA_FINAL_CD-CONSUME_VALUE = W_FFX-CONSUME_VALUE - W_FFX1-CONSUME_VALUE .
+        WA_FINAL_CD-AMOUNT1 = W_FFX-AMOUNT1 - W_FFX1-AMOUNT1.
+        WA_FINAL_CD-AMOUNT5 = W_FFX-AMOUNT5 - W_FFX1-AMOUNT5.
+        WA_FINAL_CD-AMOUNT2 = W_FFX-AMOUNT2 - W_FFX1-AMOUNT2.
+        WA_FINAL_CD-AMOUNT6 = W_FFX-AMOUNT6 - W_FFX1-AMOUNT6.
+        WA_FINAL_CD-AMOUNT4 = W_FFX-AMOUNT4 - W_FFX1-AMOUNT4.
+        WA_FINAL_CD-AMOUNT3 = W_FFX-AMOUNT3 - W_FFX1-AMOUNT3.
+      ENDIF .
+      APPEND WA_FINAL_CD TO IT_FINAL_CD .
+      CLEAR : WA_FINAL_CD , W_FFX1 , W_FFX .
+    ENDLOOP .
+
+    CHECK RB NE 'CD' .
+
+  ENDIF .
+
+  SELECT A~MBLNR,
+         A~MJAHR,
+         A~ZEILE,
+         A~BWART,
+         A~XAUTO,
+         A~MATNR,
+         A~WERKS,
+         A~LGORT,
+         A~BUDAT_MKPF,
+         A~DMBTR,
+         A~PRCTR,
+         A~KOSTL,
+         A~MENGE,
+         A~EBELN,                   "M Deepak 18.07.24
+         B~MTART,
+         B~MEINS,
+         B~MATKL,
+         C~MAKTX,
+         D~LTEXT
+  FROM  MSEG AS A
+  INNER JOIN MARA AS B ON B~MATNR = A~MATNR
+  INNER JOIN MAKT AS C ON C~MATNR = B~MATNR
+  LEFT OUTER JOIN  CSKT AS D ON D~KOSTL = A~KOSTL
+  INTO TABLE @DATA(IT_MSEG)
+  WHERE A~BUDAT_MKPF IN @BUDAT
+  AND   A~KOSTL IN @KOSTL "AR
+  AND   A~BWART IN @BWART
+  AND   A~WERKS IN @WERKS
+  AND   B~MTART IN @MTART
+  AND   B~MATKL IN @MATKL.
+
+  SELECT MTART, MTBEZ,SPRAS
+     FROM T134T
+    INTO TABLE @DATA(IT_T134T)
+    FOR ALL ENTRIES IN @IT_MSEG
+    WHERE MTART = @IT_MSEG-MTART AND SPRAS = 'E'.
+
+
+
+  IF R1 EQ 'X' .
+    LOOP AT IT_MSEG INTO DATA(WA_MSEG) WHERE  ( BWART = '201' OR BWART = '202' OR BWART = '261' OR BWART = '262'  OR BWART = '543'  OR BWART = '544' ).
+
+      WA_FINAL-POSTING_DAT   = WA_MSEG-BUDAT_MKPF.
+      WA_FINAL-DOC_NO        = WA_MSEG-MBLNR.
+      WA_FINAL-MATERIAL      = WA_MSEG-MATNR.
+      WA_FINAL-MAT_DES       = WA_MSEG-MAKTX.
+      WA_FINAL-MAT_GROUP     = WA_MSEG-MATKL.
+      WA_FINAL-MAT_TYP       = WA_MSEG-MTART.
+      WA_FINAL-COST_CENTRE   = WA_MSEG-KOSTL.
+      WA_FINAL-PROFIT_CENTRE = WA_MSEG-PRCTR.
+      WA_FINAL-STORE_LOC     = WA_MSEG-LGORT.
+      WA_FINAL-MOV_TYP       = WA_MSEG-BWART.
+*------------------------------------------------------------*
+****Start******add by arvind 31.05.2022**********************
+*------------------------------------------------------------*
+      CASE WA_MSEG-BWART.
+        WHEN '201' .
+          QTY_201 = QTY_201 + WA_MSEG-MENGE.
+
+        WHEN '202' .
+          QTY_202 = QTY_202 + WA_MSEG-MENGE.
+
+
+        WHEN '261' .
+          QTY_261 = QTY_261 + WA_MSEG-MENGE.
+
+        WHEN '262' .
+          QTY_262 = QTY_262 + WA_MSEG-MENGE.
+
+        WHEN '543' .
+          QTY_543 = QTY_543 + WA_MSEG-MENGE.
+
+        WHEN '544' .
+          QTY_544 = QTY_544 + WA_MSEG-MENGE.
+
+        WHEN OTHERS.
+      ENDCASE.
+      TOT_01 =  QTY_201 -   QTY_202.
+      TOT_61 =  QTY_261 -   QTY_262.
+      TOT_43 =  QTY_543 -   QTY_544.
+      F_TOT  =  TOT_01  + TOT_61  + TOT_43.
+      WA_MSEG-MENGE  = F_TOT.
+
+      CLEAR :TOT_01, TOT_61 ,QTY_201 , QTY_202 ,TOT_61 ,QTY_261 ,QTY_262 , F_TOT , QTY_543 , QTY_544 ,TOT_43 .
+*------------------------------------------------------------*
+****End******add by arvind 31.05.2022**********************
+*------------------------------------------------------------*
+      WA_FINAL-CONSUME_QTY   = WA_MSEG-MENGE.
+*------------------------------------------------------------*
+****Start******add by arvind 31.05.2022**********************
+*------------------------------------------------------------*
+      CASE WA_MSEG-BWART.
+        WHEN '201' .
+          QTY_201 = QTY_201 + WA_MSEG-DMBTR.
+
+        WHEN '202' .
+          QTY_202 = QTY_202 + WA_MSEG-DMBTR.
+
+
+        WHEN '261' .
+          QTY_261 = QTY_261 + WA_MSEG-DMBTR.
+
+        WHEN '262' .
+          QTY_262 = QTY_262 + WA_MSEG-DMBTR.
+
+        WHEN '543' .
+          QTY_543 = QTY_543 + WA_MSEG-DMBTR.
+
+        WHEN '544' .
+          QTY_544 = QTY_544 + WA_MSEG-DMBTR.
+
+        WHEN OTHERS.
+      ENDCASE.
+      TOT_01 =  QTY_201 -   QTY_202.
+      TOT_61 =  QTY_261 -   QTY_262.
+      TOT_43 =  QTY_543 -   QTY_544.
+      F_TOT  =  TOT_01  + TOT_61 + TOT_43.
+      WA_MSEG-DMBTR  = F_TOT.
+
+      CLEAR :TOT_01, TOT_61 ,QTY_201 , QTY_202 ,TOT_61 ,QTY_261 ,QTY_262 , F_TOT, QTY_543 , QTY_544 ,TOT_43 .
+*------------------------------------------------------------*
+****End******add by arvind 31.05.2022**********************
+*------------------------------------------------------------*
+      WA_FINAL-CONSUME_VALUE = WA_MSEG-DMBTR.
+      WA_FINAL-CLOSE_QTY     = WA_MSEG-MENGE.
+      WA_FINAL-CLOSE_VALUE   = WA_MSEG-DMBTR.
+      WA_FINAL-PRO_QTY       = WA_MSEG-MENGE.
+      WA_FINAL-SALE_QTY      = WA_MSEG-MENGE.
+      WA_FINAL-UOM           = WA_MSEG-MEINS.
+      WA_FINAL-COST_CENTRE_DESCRIPTION      = WA_MSEG-LTEXT.
+
+      IF WERKS IS INITIAL.
+        WA_FINAL-PLANT = 'ARGL'.
+      ELSE.
+        WA_FINAL-PLANT = WA_MSEG-WERKS.
+      ENDIF.
+
+      READ TABLE IT_T134T INTO DATA(WA_T134T) WITH KEY MTART = WA_MSEG-MTART.
+      IF SY-SUBRC = 0.
+        WA_FINAL-GRP_DESP = WA_T134T-MTBEZ.          "group description
+      ENDIF.
+
+      IF WA_MSEG-WERKS = '1010'.
+        WA_FINAL-AMOUNT1 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1020'.
+        WA_FINAL-AMOUNT2 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1030'.
+        WA_FINAL-AMOUNT3 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1040'.
+        WA_FINAL-AMOUNT4 = WA_FINAL-CONSUME_VALUE.
+      ENDIF.
+
+
+      SHIFT WA_FINAL-MATERIAL LEFT DELETING LEADING '0'.
+      SHIFT WA_FINAL-PROFIT_CENTRE LEFT DELETING LEADING '0'.
+
+      COLLECT WA_FINAL INTO IT_FINAL .
+
+      CLEAR : WA_FINAL ,WA_MSEG.
+    ENDLOOP.
+
+
+  ELSEIF R2 EQ 'X' OR R3 = 'X'  .
+    DELETE IT_MSEG WHERE MTART = 'ZSFG' OR MTART = 'ZNON' OR MTART = 'ZSCR' OR MTART = 'ZCAP'.
+    LOOP AT IT_MSEG INTO WA_MSEG WHERE  ( BWART = '201' OR BWART = '202' OR BWART = '261' OR BWART = '262' OR BWART = '543'  OR BWART = '544' ).
+
+
+*    wa_final-posting_dat   = wa_mseg-budat_mkpf.
+*    wa_final-doc_no        = wa_mseg-mblnr.
+*    wa_final-material      = wa_mseg-matnr.
+*    wa_final-mat_des       = wa_mseg-maktx.
+*    wa_final-mat_group     = wa_mseg-matkl.
+      WA_FINAL-MAT_TYP       = WA_MSEG-MTART.
+*    wa_final-cost_centre   = wa_mseg-kostl.
+*    wa_final-profit_centre = wa_mseg-prctr.
+*    wa_final-store_loc     = wa_mseg-lgort.
+*    wa_final-mov_typ       = wa_mseg-bwart.
+*    wa_final-consume_qty   = wa_mseg-menge.
+*------------------------------------------------------------*
+****Start******add by arvind 30.05.2022**********************
+*------------------------------------------------------------*
+      CASE WA_MSEG-BWART.
+        WHEN '201' .
+          QTY_201 = QTY_201 + WA_MSEG-DMBTR.
+
+        WHEN '202' .
+          QTY_202 = QTY_202 + WA_MSEG-DMBTR.
+
+
+        WHEN '261' .
+          QTY_261 = QTY_261 + WA_MSEG-DMBTR.
+
+        WHEN '262' .
+          QTY_262 = QTY_262 + WA_MSEG-DMBTR.
+
+        WHEN '543' .
+          QTY_543 = QTY_543 + WA_MSEG-DMBTR.
+
+        WHEN '544' .
+          QTY_544 = QTY_544 + WA_MSEG-DMBTR.
+
+        WHEN OTHERS.
+      ENDCASE.
+      TOT_01 =  QTY_201 -   QTY_202.
+      TOT_61 =  QTY_261 -   QTY_262.
+      TOT_43 =  QTY_543 -   QTY_544.
+      F_TOT  =  TOT_01  + TOT_61 + TOT_43.
+      WA_MSEG-DMBTR  = F_TOT.
+
+      CLEAR :TOT_01, TOT_61 ,QTY_201 , QTY_202 ,TOT_61 ,QTY_261 ,QTY_262 , F_TOT, QTY_543 , QTY_544 ,TOT_43 .
+
+*------------------------------------------------------------*
+****End******add by arvind 30.05.2022**********************
+*------------------------------------------------------------*
+*      WA_FINAL1-ACTUAL_PRD = QTY_101 - QTY_102.
+      WA_FINAL-CONSUME_VALUE = WA_MSEG-DMBTR.
+*    wa_final-close_qty     = wa_mseg-menge.
+*    wa_final-close_value   = wa_mseg-dmbtr.
+*    wa_final-pro_qty       = wa_mseg-menge.
+*    wa_final-sale_qty      = wa_mseg-menge.
+*    wa_final-uom           = wa_mseg-meins.
+*    wa_final-cost_centre_description      = wa_mseg-ltext.
+
+      IF WERKS IS INITIAL.
+        WA_FINAL-PLANT = 'ARGL'.
+      ELSE.
+        WA_FINAL-PLANT = WA_MSEG-WERKS.
+      ENDIF.
+
+      READ TABLE IT_T134T INTO WA_T134T WITH KEY MTART = WA_MSEG-MTART.
+      IF SY-SUBRC = 0.
+        WA_FINAL-GRP_DESP = WA_T134T-MTBEZ.          "group description
+      ENDIF.
+
+      IF WA_MSEG-WERKS = '1010'.
+        WA_FINAL-AMOUNT1 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1015'.
+        WA_FINAL-AMOUNT5 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1020'.
+        WA_FINAL-AMOUNT2 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1025'.
+        WA_FINAL-AMOUNT6 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1030'.
+        WA_FINAL-AMOUNT3 = WA_FINAL-CONSUME_VALUE.
+      ELSEIF
+
+        WA_MSEG-WERKS = '1040'.
+        WA_FINAL-AMOUNT4 = WA_FINAL-CONSUME_VALUE.
+      ENDIF.
+
+
+      SHIFT WA_FINAL-MATERIAL LEFT DELETING LEADING '0'.
+      SHIFT WA_FINAL-PROFIT_CENTRE LEFT DELETING LEADING '0'.
+
+      IF RB = 'R3' .
+        COLLECT WA_FINAL INTO IT_FINAL1 .
+      ELSE .
+        COLLECT WA_FINAL INTO IT_FINAL .
+      ENDIF .
+*      COLLECT wa_final INTO it_final.
+      CLEAR WA_FINAL.
+    ENDLOOP.
+  ENDIF.
+  DELETE IT_FINAL WHERE MAT_TYP = 'ZFGS' .
+  DELETE IT_FINAL1 WHERE MAT_TYP = 'ZFGS' .
+  REFRESH : IT_MSEG .
+ENDFORM.
+
+FORM CREATE_FCAT .
+  IF R1 EQ 'X'  .
+    WA_FCAT-FIELDNAME = 'POSTING_DAT'.
+    WA_FCAT-SELTEXT_M = 'Posting Date'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+
+    WA_FCAT-FIELDNAME = 'PLANT'.
+    WA_FCAT-SELTEXT_M = 'Plant'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+
+    WA_FCAT-FIELDNAME = 'DOC_NO'.
+    WA_FCAT-SELTEXT_M = 'Document Number'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'MATERIAL'.
+    WA_FCAT-SELTEXT_M = 'Material Code'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'MAT_DES'.
+    WA_FCAT-SELTEXT_M = 'Material Description'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'MAT_GROUP'.
+    WA_FCAT-SELTEXT_M = 'Material Group'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'COST_CENTRE'.
+    WA_FCAT-SELTEXT_M = 'Cost Centre'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'COST_CENTRE_DESCRIPTION'.
+    WA_FCAT-SELTEXT_M = 'Cost Centre Description'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'PROFIT_CENTRE'.
+    WA_FCAT-SELTEXT_M = 'Profit Centre'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'STORE_LOC'.
+    WA_FCAT-SELTEXT_M = 'Storage Location'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'MOV_TYP'.
+    WA_FCAT-SELTEXT_M = 'Movement Type'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'UOM'.
+    WA_FCAT-SELTEXT_M = 'UOM'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'CONSUME_QTY'.
+    WA_FCAT-SELTEXT_M = 'Consumption Qty'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'CONSUME_VALUE'.
+    WA_FCAT-SELTEXT_M = 'Consumption Value'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'GRP_DESP'.
+    WA_FCAT-SELTEXT_M = 'Group Description'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_TOP-TYP = 'H'.
+    WA_TOP-INFO = 'ARGL Limited'.
+    APPEND WA_TOP TO IT_TOP.
+    CLEAR WA_TOP.
+
+    WA_TOP-TYP = 'S'.
+    WA_TOP-KEY = 'PLANT'.
+    WRITE  WERKS-LOW TO WO .
+    WRITE  WERKS-HIGH TO WO1 .
+    " CONCATENATE ':' 'From' wo 'To' wo1 INTO wa_top-info SEPARATED BY space.  "werks INTO wa_top-info.
+    CONCATENATE ':'  WO  WO1 INTO WA_TOP-INFO SEPARATED BY SPACE.  "werks INTO wa_top-info.
+    APPEND WA_TOP TO IT_TOP.
+    CLEAR WA_TOP.
+
+    WA_TOP-TYP = 'S'.
+    WA_TOP-KEY = 'Period'.
+    WRITE  BUDAT-LOW TO DAT DD/MM/YY.
+    WRITE  BUDAT-HIGH TO DAT1 DD/MM/YY.
+    CONCATENATE ':' 'From' DAT 'To' DAT1 INTO WA_TOP-INFO SEPARATED BY SPACE.
+    APPEND WA_TOP TO IT_TOP.
+    CLEAR WA_TOP.
+
+    WA_TOP-TYP = 'S'.
+    WA_TOP-KEY = '(Detailed Report)'.
+    APPEND WA_TOP TO IT_TOP.
+    CLEAR WA_TOP.
+
+  ELSEIF R2 EQ 'X' OR R3 EQ 'X' .
+
+*    wa_fcat-fieldname = 'PROFIT_CENTRE'.
+*    wa_fcat-seltext_m = 'Profit Centre'.
+*    wa_fcat-outputlen = 20.
+**    wa_fcat-key      = 'X'.
+*    APPEND wa_fcat TO it_fcat.
+*    CLEAR wa_fcat.
+*
+*    wa_fcat-fieldname = 'plant'.
+*    wa_fcat-seltext_m = 'plant'.
+*    wa_fcat-just        = 'L'.
+*    APPEND wa_fcat TO it_fcat.
+*    CLEAR wa_fcat.
+
+    WA_FCAT-FIELDNAME = 'MAT_TYP'.
+    WA_FCAT-SELTEXT_M = ' Material Type'.
+    WA_FCAT-OUTPUTLEN = 4.
+*    wa_fcat-outputlen = 10 .
+    WA_FCAT-KEY      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'GRP_DESP'.
+    WA_FCAT-SELTEXT_M = 'Material Description'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    WA_FCAT-JUST        = 'L'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+
+
+    WA_FCAT-FIELDNAME = 'CONSUME_QTY'.
+    WA_FCAT-SELTEXT_M = 'Consumption Qty'.
+    WA_FCAT-OUTPUTLEN = 20.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-KEY      = 'X'.
+*    APPEND wa_fcat TO it_fcat.
+    CLEAR WA_FCAT.
+
+*    wa_fcat-fieldname = 'UOM'.
+*    wa_fcat-seltext_m = 'UOM'.
+*    wa_fcat-just        = 'L'.
+*    APPEND wa_fcat TO it_fcat.
+*    CLEAR wa_fcat.
+
+    WA_FCAT-FIELDNAME = 'CONSUME_VALUE'.
+    WA_FCAT-SELTEXT_M = 'Consumption Value'.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'AMOUNT1'.
+    WA_FCAT-SELTEXT_M = '1010'.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'AMOUNT5'.
+    WA_FCAT-SELTEXT_M = '1015'.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'AMOUNT2'.
+    WA_FCAT-SELTEXT_M = '1020'.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'AMOUNT6'.
+    WA_FCAT-SELTEXT_M = '1025'.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'AMOUNT3'.
+    WA_FCAT-SELTEXT_M = '1030'.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+    WA_FCAT-FIELDNAME = 'AMOUNT4'.
+    WA_FCAT-SELTEXT_M = '1040'.
+    WA_FCAT-DO_SUM   = 'X'.
+    WA_FCAT-OUTPUTLEN = 20.
+*    wa_fcat-key      = 'X'.
+    APPEND WA_FCAT TO IT_FCAT.
+    CLEAR WA_FCAT.
+
+
+    WA_TOP-TYP = 'H'.
+    WA_TOP-INFO = 'ARGL Limited'.
+    APPEND WA_TOP TO IT_TOP.
+    CLEAR WA_TOP.
+
+    WA_TOP-TYP = 'S'.
+    WA_TOP-KEY = 'Period'.
+    WRITE  BUDAT-LOW TO DAT DD/MM/YY.
+    WRITE  BUDAT-HIGH TO DAT1 DD/MM/YY.
+    CONCATENATE ':' 'From' DAT 'To' DAT1 INTO WA_TOP-INFO SEPARATED BY SPACE.
+    APPEND WA_TOP TO IT_TOP.
+    CLEAR WA_TOP.
+
+    WA_TOP-TYP = 'S'.
+    WA_TOP-KEY = '(Summary Report)'.
+    APPEND WA_TOP TO IT_TOP.
+    CLEAR WA_TOP.
+
+  ENDIF.
+ENDFORM.                    " CREATE_FCAT
+
+FORM DISPLAY_DATA.
+
+  IF R2 EQ 'X'.
+    WA_SORT-FIELDNAME = 'MAT_TYP'..
+    WA_SORT-TABNAME   = 'IT_FINAL'.
+    WA_SORT-UP        = 'X'.
+*    wa_sort-subtot    = 'X'.
+    APPEND WA_SORT TO IT_SORT.
+
+  ENDIF.
+
+
+*****************************************
+IF P_MAIL NE 'X' .
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      I_CALLBACK_PROGRAM     = SY-REPID
+      I_CALLBACK_TOP_OF_PAGE = 'TOP'
+      IT_FIELDCAT            = IT_FCAT
+      IT_SORT                = IT_SORT
+    TABLES
+      T_OUTTAB               = IT_FINAL
+    EXCEPTIONS
+      PROGRAM_ERROR          = 1
+      OTHERS                 = 2.
+
+ENDIF.
+
+ENDFORM.
+
+FORM TOP.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      IT_LIST_COMMENTARY = IT_TOP.
+  .
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0777 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_0777 OUTPUT.
+
+  IF T_PBO = '' .
+    IF ALV_CONTAINER IS BOUND.
+      FREE OSD_GRID.
+      ALV_CONTAINER->FREE(
+        EXCEPTIONS
+          CNTL_ERROR        = 1                " CNTL_ERROR
+          CNTL_SYSTEM_ERROR = 2                " CNTL_SYSTEM_ERROR
+          OTHERS            = 3
+      ).
+
+    ENDIF.
+
+    IF ALV_CONTAINER2 IS BOUND.
+      FREE OSD_GRID2.
+      ALV_CONTAINER2->FREE(
+        EXCEPTIONS
+          CNTL_ERROR        = 1                " CNTL_ERROR
+          CNTL_SYSTEM_ERROR = 2                " CNTL_SYSTEM_ERROR
+          OTHERS            = 3
+      ).
+    ENDIF.
+
+    IF ALV_CONTAINER3 IS BOUND.
+      FREE OSD_GRID3.
+      ALV_CONTAINER3->FREE(
+        EXCEPTIONS
+          CNTL_ERROR        = 1                " CNTL_ERROR
+          CNTL_SYSTEM_ERROR = 2                " CNTL_SYSTEM_ERROR
+          OTHERS            = 3
+      ).
+
+    ENDIF.
+
+    CREATE OBJECT ALV_CONTAINER
+      EXPORTING
+        CONTAINER_NAME = 'CONT1'.
+    IF SY-SUBRC EQ 0.
+      CREATE OBJECT OSD_GRID
+        EXPORTING
+          I_PARENT = ALV_CONTAINER.
+    ENDIF.
+
+*    PERFORM hide_alv_function.
+
+    REFRESH : SD_FIELDCAT[] .
+    LOOP AT IT_FCAT INTO DATA(W_FCAT) .
+      WSD_FIELDCAT-FIELDNAME = W_FCAT-FIELDNAME .
+      WSD_FIELDCAT-TABNAME   = 'IT_FINAL'.
+      WSD_FIELDCAT-SCRTEXT_L = W_FCAT-SELTEXT_M.
+      WSD_FIELDCAT-OUTPUTLEN = W_FCAT-OUTPUTLEN ..
+      WSD_FIELDCAT-DO_SUM = W_FCAT-DO_SUM ..
+      APPEND WSD_FIELDCAT TO SD_FIELDCAT .
+    ENDLOOP .
+
+
+    CALL METHOD OSD_GRID->SET_TABLE_FOR_FIRST_DISPLAY
+      EXPORTING
+        IS_VARIANT                    = SD_VARIANT
+        I_SAVE                        = 'A'
+        IT_TOOLBAR_EXCLUDING          = IT_TOOLBAR[]
+      CHANGING
+        IT_OUTTAB                     = IT_FINAL     """" CONT1
+        IT_FIELDCATALOG               = SD_FIELDCAT  ""it_fcat
+      EXCEPTIONS
+        INVALID_PARAMETER_COMBINATION = 1
+        PROGRAM_ERROR                 = 2
+        TOO_MANY_LINES                = 3
+        OTHERS                        = 4.
+
+*************************************************************************************
+*    IF alv_container IS BOUND.
+*      FREE osd_grid.
+*      alv_container->free( ).
+*    ENDIF.
+
+    CREATE OBJECT ALV_CONTAINER2
+      EXPORTING
+        CONTAINER_NAME = 'CONT2'.
+    IF SY-SUBRC EQ 0.
+      CREATE OBJECT OSD_GRID2
+        EXPORTING
+          I_PARENT = ALV_CONTAINER2.
+    ENDIF.
+
+*  if disply is initial.
+*    PERFORM hide_alv_function.
+
+    REFRESH : SD_FIELDCAT[] .
+    LOOP AT IT_FCAT INTO W_FCAT .
+      WSD_FIELDCAT-FIELDNAME = W_FCAT-FIELDNAME .
+      WSD_FIELDCAT-TABNAME   = 'IT_FINAL1'.
+      WSD_FIELDCAT-SCRTEXT_L = W_FCAT-SELTEXT_M.
+      WSD_FIELDCAT-OUTPUTLEN = W_FCAT-OUTPUTLEN ..
+      WSD_FIELDCAT-DO_SUM = W_FCAT-DO_SUM ..
+      APPEND WSD_FIELDCAT TO SD_FIELDCAT .
+    ENDLOOP .
+
+    CALL METHOD OSD_GRID2->SET_TABLE_FOR_FIRST_DISPLAY
+      EXPORTING
+        IS_VARIANT                    = SD_VARIANT
+        I_SAVE                        = 'A'
+*       is_layout                     = wa_layo
+        IT_TOOLBAR_EXCLUDING          = IT_TOOLBAR[]
+      CHANGING
+        IT_OUTTAB                     = IT_FINAL1  """" CONT1
+        IT_FIELDCATALOG               = SD_FIELDCAT """it_fcat
+      EXCEPTIONS
+        INVALID_PARAMETER_COMBINATION = 1
+        PROGRAM_ERROR                 = 2
+        TOO_MANY_LINES                = 3
+        OTHERS                        = 4.
+
+    CREATE OBJECT ALV_CONTAINER3
+      EXPORTING
+        CONTAINER_NAME = 'CONT3'.
+    IF SY-SUBRC EQ 0.
+      CREATE OBJECT OSD_GRID3
+        EXPORTING
+          I_PARENT = ALV_CONTAINER3.
+    ENDIF.
+
+    REFRESH : SD_FIELDCAT[] .
+    LOOP AT IT_FCAT INTO W_FCAT .
+      WSD_FIELDCAT-FIELDNAME = W_FCAT-FIELDNAME .
+      WSD_FIELDCAT-TABNAME   = 'IT_FINAL_CD'.
+      WSD_FIELDCAT-SCRTEXT_L = W_FCAT-SELTEXT_M.
+      WSD_FIELDCAT-OUTPUTLEN = W_FCAT-OUTPUTLEN ..
+      WSD_FIELDCAT-DO_SUM = W_FCAT-DO_SUM ..
+      APPEND WSD_FIELDCAT TO SD_FIELDCAT .
+    ENDLOOP .
+
+    CALL METHOD OSD_GRID3->SET_TABLE_FOR_FIRST_DISPLAY
+      EXPORTING
+        IS_VARIANT                    = SD_VARIANT
+        I_SAVE                        = 'A'
+        IT_TOOLBAR_EXCLUDING          = IT_TOOLBAR[]
+      CHANGING
+        IT_OUTTAB                     = IT_FINAL_CD  """" CONT1
+        IT_FIELDCATALOG               = SD_FIELDCAT """it_fcat
+      EXCEPTIONS
+        INVALID_PARAMETER_COMBINATION = 1
+        PROGRAM_ERROR                 = 2
+        TOO_MANY_LINES                = 3
+        OTHERS                        = 4.
+
+
+    T_PBO = 'X' .
+
+    SET PF-STATUS 'ZSTATUS_FINALS' .
+    SET TITLEBAR 'ZTITLE' .
+
+  ENDIF .
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0777  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0777 INPUT.
+
+  CASE SY-UCOMM .
+    WHEN 'EXCEL'.
+
+      DATA:G_STR2 TYPE STRING .
+      DATA:G_STR1 TYPE STRING VALUE '.XLS'.
+      DATA:G_STR TYPE STRING VALUE 'C:\EXCEL\EXCEL'.
+      CONCATENATE G_STR G_STR1 INTO G_STR2.
+      TYPES:BEGIN OF TY_HEADER,
+
+              POSTING_DAT             TYPE STRING,
+              DOC_NO                  TYPE STRING,
+              MATERIAL                TYPE STRING,
+              MAT_DES                 TYPE STRING,
+              MAT_GROUP               TYPE STRING,
+              MAT_TYP                 TYPE STRING,
+              GRP_DESP                TYPE STRING,
+              UOM                     TYPE STRING,
+              COST_CENTRE             TYPE STRING,
+              PROFIT_CENTRE           TYPE STRING,
+              STORE_LOC               TYPE STRING,
+              MOV_TYP                 TYPE STRING,
+              CONSUME_QTY             TYPE STRING,
+              CONSUME_VALUE           TYPE STRING,
+              CLOSE_QTY               TYPE STRING,
+              CLOSE_VALUE             TYPE STRING,
+              PRO_QTY                 TYPE STRING,
+              SALE_QTY                TYPE STRING,
+              COST_CENTRE_DESCRIPTION TYPE STRING,
+              AMOUNT1                 TYPE STRING,
+              AMOUNT2                 TYPE STRING,
+              AMOUNT3                 TYPE STRING,
+              AMOUNT4                 TYPE STRING,
+              AMOUNT5                 TYPE STRING,    " add on 16.1.24
+              AMOUNT6                 TYPE STRING,    " add on 16.1.24
+
+              PLANT                   TYPE STRING,
+*              grp_desp                TYPE string,
+            END OF TY_HEADER.
+
+      TYPES: BEGIN OF TY_VBAK ,
+               MAT_TYP       TYPE MARA-MTART,
+               GRP_DESP      TYPE T134T-MTBEZ,
+               CONSUME_VALUE TYPE STRING,
+               AMOUNT1       TYPE STRING,
+               AMOUNT5       TYPE STRING,
+               AMOUNT2       TYPE STRING,
+               AMOUNT6       TYPE STRING,
+               AMOUNT3       TYPE STRING,
+               AMOUNT4       TYPE STRING,
+             END OF TY_VBAK .
+      DATA: ITAB1 TYPE TABLE OF TY_VBAK,
+            WTAB1 TYPE TY_VBAK.
+      TYPES:BEGIN OF WA_HEADER,
+              NAME TYPE CHAR30,
+            END OF WA_HEADER .
+      DATA: IT1 TYPE TABLE OF WA_HEADER,
+            WA1 TYPE WA_HEADER.
+      WA1-NAME = 'Report Data:-'.
+      APPEND WA1 TO IT1 .
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+*         APPEND                = ' '
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = IT1.
+      LOOP AT IT_FINAL INTO WA_FINAL.
+        WTAB1-MAT_TYP = WA_FINAL-MAT_TYP.
+        WTAB1-GRP_DESP = WA_FINAL-GRP_DESP .
+        WTAB1-CONSUME_VALUE = WA_FINAL-CONSUME_VALUE .
+        WTAB1-AMOUNT1 = WA_FINAL-AMOUNT1.
+        WTAB1-AMOUNT5 = WA_FINAL-AMOUNT5.
+        WTAB1-AMOUNT2 = WA_FINAL-AMOUNT2.
+        WTAB1-AMOUNT6 = WA_FINAL-AMOUNT6 .
+        WTAB1-AMOUNT3 = WA_FINAL-AMOUNT3.
+        WTAB1-AMOUNT4 = WA_FINAL-AMOUNT4 .
+        APPEND WTAB1 TO ITAB1 .
+        CLEAR:WTAB1,WA_FINAL .
+      ENDLOOP.
+
+      DATA: IT_HEAD TYPE TABLE OF WA_HEADER.
+      APPEND 'Material Type' TO IT_HEAD.
+      APPEND 'Material Description' TO IT_HEAD .
+      APPEND  'Consumption Value'   TO IT_HEAD.
+      APPEND '1010' TO IT_HEAD .
+      APPEND '1015' TO IT_HEAD .
+      APPEND '1020' TO IT_HEAD .
+      APPEND '1025' TO IT_HEAD .
+      APPEND '1030' TO IT_HEAD .
+      APPEND '1040' TO IT_HEAD .
+
+*      APPEND INITIAL LINE TO itab1.
+
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = ITAB1
+          FIELDNAMES            = IT_HEAD.
+
+      TYPES: BEGIN OF TY_VBAK1 ,
+               MAT_TYP1       TYPE MARA-MTART,
+               GRP_DESP1      TYPE T134T-MTBEZ,
+               CONSUME_VALUE1 TYPE MSEG-DMBTR,
+               AMOUNT11       TYPE MSEG-DMBTR,
+               AMOUNT51       TYPE MSEG-DMBTR,
+               AMOUNT21       TYPE MSEG-DMBTR,
+               AMOUNT61       TYPE MSEG-DMBTR,
+               AMOUNT31       TYPE MSEG-DMBTR,
+               AMOUNT41       TYPE MSEG-DMBTR,
+             END OF TY_VBAK1 .
+      DATA: SUM1 TYPE TABLE OF TY_VBAK1 .
+      DATA:WA_SUM TYPE TY_VBAK1 .
+      LOOP AT IT_FINAL INTO WA_FINAL.
+*        wtab1-mat_typ = wtab1-mat_typ + wa_final-mat_typ.
+*        wtab1-grp_desp = wtab1-grp_desp + wa_final-grp_desp .
+        WA_SUM-CONSUME_VALUE1 =  WA_SUM-CONSUME_VALUE1 + WA_FINAL-CONSUME_VALUE .
+        WA_SUM-AMOUNT11 =   WA_SUM-AMOUNT11 + WA_FINAL-AMOUNT1.
+        WA_SUM-AMOUNT51 =    WA_SUM-AMOUNT51 + WA_FINAL-AMOUNT5.
+        WA_SUM-AMOUNT21 =   WA_SUM-AMOUNT21  + WA_FINAL-AMOUNT2.
+        WA_SUM-AMOUNT61 =     WA_SUM-AMOUNT61 + WA_FINAL-AMOUNT6 .
+        WA_SUM-AMOUNT31 =  WA_SUM-AMOUNT31 + WA_FINAL-AMOUNT3.
+        WA_SUM-AMOUNT41 =         WA_SUM-AMOUNT41 + WA_FINAL-AMOUNT4 .
+*      APPEND wa_sum to sum1.
+        CLEAR:WA_FINAL .
+      ENDLOOP.
+      APPEND WA_SUM TO SUM1.
+      CLEAR:WA_SUM.
+*      APPEND INITIAL LINE TO sum1 .
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = SUM1.
+
+      DATA: IT2 TYPE TABLE OF WA_HEADER,
+            WA2 TYPE WA_HEADER.
+      APPEND INITIAL LINE TO IT2.
+      WA2-NAME = 'Comparative Data :-'.
+      APPEND WA2 TO IT2 .
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = IT2.
+
+      DATA: ITAB2 TYPE TABLE OF TY_VBAK,
+            WTAB2 TYPE TY_VBAK.
+      LOOP AT IT_FINAL1 INTO WA_FINAL.
+        WTAB2-MAT_TYP = WA_FINAL-MAT_TYP.
+        WTAB2-GRP_DESP = WA_FINAL-GRP_DESP .
+        WTAB2-CONSUME_VALUE = WA_FINAL-CONSUME_VALUE .
+        WTAB2-AMOUNT1 = WA_FINAL-AMOUNT1.
+        WTAB2-AMOUNT5 = WA_FINAL-AMOUNT5.
+        WTAB2-AMOUNT2 = WA_FINAL-AMOUNT2.
+        WTAB2-AMOUNT6 = WA_FINAL-AMOUNT6 .
+        WTAB2-AMOUNT3 = WA_FINAL-AMOUNT3.
+        WTAB2-AMOUNT4 = WA_FINAL-AMOUNT4 .
+        APPEND WTAB2 TO ITAB2 .
+        CLEAR:WTAB2,WA_FINAL .
+      ENDLOOP.
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = ITAB2
+          FIELDNAMES            = IT_HEAD.
+      DATA: SUM2 TYPE TABLE OF TY_VBAK1 .
+
+      LOOP AT IT_FINAL1 INTO WA_FINAL.
+*        wtab1-mat_typ = wtab1-mat_typ + wa_final-mat_typ.
+*        wtab1-grp_desp = wtab1-grp_desp + wa_final-grp_desp .
+        WA_SUM-CONSUME_VALUE1 =  WA_SUM-CONSUME_VALUE1 + WA_FINAL-CONSUME_VALUE .
+        WA_SUM-AMOUNT11 =   WA_SUM-AMOUNT11 + WA_FINAL-AMOUNT1.
+        WA_SUM-AMOUNT51 =    WA_SUM-AMOUNT51 + WA_FINAL-AMOUNT5.
+        WA_SUM-AMOUNT21 =   WA_SUM-AMOUNT21  + WA_FINAL-AMOUNT2.
+        WA_SUM-AMOUNT61 =     WA_SUM-AMOUNT61 + WA_FINAL-AMOUNT6 .
+        WA_SUM-AMOUNT31 =  WA_SUM-AMOUNT31 + WA_FINAL-AMOUNT3.
+        WA_SUM-AMOUNT41 =         WA_SUM-AMOUNT41 + WA_FINAL-AMOUNT4 .
+        CLEAR:WA_FINAL .
+      ENDLOOP.
+      APPEND WA_SUM TO SUM2.
+      CLEAR:WA_SUM.
+*      APPEND INITIAL LINE TO sum1 .
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = SUM2.
+
+      DATA: IT3 TYPE TABLE OF WA_HEADER,
+            WA3 TYPE WA_HEADER.
+      APPEND INITIAL LINE TO IT3.
+      WA3-NAME = 'Difference Data:-'.
+      APPEND WA3 TO IT3 .
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = IT3.
+
+
+      DATA: ITAB3 TYPE TABLE OF TY_VBAK,
+            WTAB3 TYPE TY_VBAK.
+      LOOP AT IT_FINAL_CD INTO WA_FINAL.
+        WTAB3-MAT_TYP = WA_FINAL-MAT_TYP.
+        WTAB3-GRP_DESP = WA_FINAL-GRP_DESP .
+        WTAB3-CONSUME_VALUE = WA_FINAL-CONSUME_VALUE .
+        WTAB3-AMOUNT1 = WA_FINAL-AMOUNT1.
+        WTAB3-AMOUNT5 = WA_FINAL-AMOUNT5.
+        WTAB3-AMOUNT2 = WA_FINAL-AMOUNT2.
+        WTAB3-AMOUNT6 = WA_FINAL-AMOUNT6 .
+        WTAB3-AMOUNT3 = WA_FINAL-AMOUNT3.
+        WTAB3-AMOUNT4 = WA_FINAL-AMOUNT4 .
+        APPEND WTAB3 TO ITAB3 .
+        CLEAR:WTAB3,WA_FINAL .
+      ENDLOOP.
+
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = ITAB3
+          FIELDNAMES            = IT_HEAD.
+*       EXCEPTIONS
+      DATA: SUM3 TYPE TABLE OF TY_VBAK1 .
+
+      LOOP AT IT_FINAL_CD INTO WA_FINAL.
+*        wtab1-mat_typ = wtab1-mat_typ + wa_final-mat_typ.
+*        wtab1-grp_desp = wtab1-grp_desp + wa_final-grp_desp .
+        WA_SUM-CONSUME_VALUE1 =  WA_SUM-CONSUME_VALUE1 + WA_FINAL-CONSUME_VALUE .
+        WA_SUM-AMOUNT11 =   WA_SUM-AMOUNT11 + WA_FINAL-AMOUNT1.
+        WA_SUM-AMOUNT51 =    WA_SUM-AMOUNT51 + WA_FINAL-AMOUNT5.
+        WA_SUM-AMOUNT21 =   WA_SUM-AMOUNT21  + WA_FINAL-AMOUNT2.
+        WA_SUM-AMOUNT61 =     WA_SUM-AMOUNT61 + WA_FINAL-AMOUNT6 .
+        WA_SUM-AMOUNT31 =  WA_SUM-AMOUNT31 + WA_FINAL-AMOUNT3.
+        WA_SUM-AMOUNT41 =         WA_SUM-AMOUNT41 + WA_FINAL-AMOUNT4 .
+        CLEAR:WA_FINAL .
+      ENDLOOP.
+      APPEND WA_SUM TO SUM3.
+
+
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          FILENAME              = G_STR2
+          FILETYPE              = 'ASC'
+          APPEND                = 'X'
+          WRITE_FIELD_SEPARATOR = 'X'
+        TABLES
+          DATA_TAB              = SUM3.
+*          fieldnames            = sum3.
+
+
+    WHEN 'BACK' OR 'CANCEL' OR 'EXIT' .
+      CLEAR : T_PBO .
+      REFRESH: IT_FINAL1 , IT_FINAL .
+      OSD_GRID->REFRESH_TABLE_DISPLAY(
+*      exporting
+*        is_stable      =                  " With Stable Rows/Columns
+*        i_soft_refresh =                  " Without Sort, Filter, etc.
+        EXCEPTIONS
+          FINISHED = 1                " Display was Ended (by Export)
+          OTHERS   = 2
+      ).
+
+      OSD_GRID2->REFRESH_TABLE_DISPLAY(
+*      exporting
+*        is_stable      =                  " With Stable Rows/Columns
+*        i_soft_refresh =                  " Without Sort, Filter, etc.
+        EXCEPTIONS
+          FINISHED = 1                " Display was Ended (by Export)
+          OTHERS   = 2
+      ).
+
+      OSD_GRID3->REFRESH_TABLE_DISPLAY(
+*      exporting
+*        is_stable      =                  " With Stable Rows/Columns
+*        i_soft_refresh =                  " Without Sort, Filter, etc.
+        EXCEPTIONS
+          FINISHED = 1                " Display was Ended (by Export)
+          OTHERS   = 2
+      ).
+
+      LEAVE TO SCREEN 0 .
+  ENDCASE  .
+
+ENDMODULE.
+
+FORM HIDE_ALV_FUNCTION .
+
+  CLEAR: FS_FUNC, IT_TOOLBAR[].
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_MAXIMUM.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_MINIMUM.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_SUBTOT.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_SUM.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_SORT.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_SORT_ASC.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_SORT_DSC.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_FILTER.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_DETAIL.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_DESELECT_ALL.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_LOC_COPY.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_LOC_CUT.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_PC_FILE.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_PRINT.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_REFRESH.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_LOC_APPEND_ROW.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_LOC_DELETE_ROW.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_LOC_INSERT_ROW.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_LOC_UNDO.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_FIND.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_INFO.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_VIEWS.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_MB_EXPORT.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_CHECK.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_GRAPH.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_LOC_PASTE_NEW_ROW.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+  FS_FUNC = CL_GUI_ALV_GRID=>MC_FC_EXCL_ALL.
+  APPEND FS_FUNC TO IT_TOOLBAR.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form send_email
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SEND_EMAIL . "SK
+
+DATA : lv_date1(12),
+       lv_date2(12).
+
+
+lv_date1 = BUDAT-LOW+6(2) && '.' && BUDAT-LOW+4(2) && '.' && BUDAT-LOW+0(4).
+lv_date2 = BUDAT-HIGH+6(2) && '.' && BUDAT-HIGH+4(2) && '.' && BUDAT-HIGH+0(4).
+
+  " R1 = 'X' .
+  TYPES : BEGIN OF TY_FINAL1,
+            POSTING_DAT             TYPE BUDAT,
+            DOC_NO                  TYPE MSEG-MBLNR,
+            MATERIAL                TYPE MSEG-MATNR,
+            MAT_DES                 TYPE MAKT-MAKTX,
+            MAT_GROUP               TYPE MARA-MATKL,
+            MAT_TYP                 TYPE MARA-MTART,
+            GRP_DESP                TYPE T134T-MTBEZ,
+            UOM                     TYPE MARA-MEINS,
+            COST_CENTRE             TYPE KOSTL,
+            PROFIT_CENTRE           TYPE PRCTR,
+            STORE_LOC               TYPE MSEG-LGORT,
+            MOV_TYP                 TYPE MSEG-BWART,
+            CONSUME_QTY             TYPE MSEG-MENGE,
+            CONSUME_VALUE           TYPE MSEG-DMBTR,
+            CLOSE_QTY               TYPE MSEG-MENGE,
+            CLOSE_VALUE             TYPE MSEG-DMBTR,
+            PRO_QTY                 TYPE MSEG-MENGE,
+            SALE_QTY                TYPE MSEG-MENGE,
+            COST_CENTRE_DESCRIPTION TYPE CSKT-LTEXT,
+            AMOUNT1                 TYPE MSEG-DMBTR,
+            AMOUNT2                 TYPE MSEG-DMBTR,
+            AMOUNT3                 TYPE MSEG-DMBTR,
+            AMOUNT4                 TYPE MSEG-DMBTR,
+            AMOUNT5                 TYPE MSEG-DMBTR,    " add on 16.1.24
+            AMOUNT6                 TYPE MSEG-DMBTR,    " add on 16.1.24
+            PLANT                   TYPE MSEG-WERKS,
+*            GRP_DESP                TYPE T134T-MTBEZ,
+          END OF TY_FINAL1.
+
+  " R2 = 'X' .
+  TYPES : BEGIN OF TY_FINAL2,
+            MAT_TYP       TYPE MARA-MTART,
+            GRP_DESP      TYPE T134T-MTBEZ,
+            CONSUME_QTY   TYPE MSEG-MENGE,
+            CONSUME_VALUE TYPE MSEG-DMBTR,
+            1010          TYPE MSEG-DMBTR,
+            1015          TYPE MSEG-DMBTR,
+            1020          TYPE MSEG-DMBTR,
+            1025          TYPE MSEG-DMBTR,
+            1030          TYPE MSEG-DMBTR,
+            1040          TYPE MSEG-DMBTR,
+*            PLANT         TYPE MSEG-WERKS,
+
+          END OF TY_FINAL2 .
+
+  DATA : IT_FINAL_1 TYPE TABLE OF TY_FINAL2,
+         WA_FINAL_1 TYPE TY_FINAL2.
+
+*data : send_request type ref to cl_bcs.
+
+  DATA: "send_request      type ref to cl_bcs,
+    LT_TEXT           TYPE BCSY_TEXT,
+    BINARY_CONTENT    TYPE SOLIX_TAB,
+    LT_BINARY_CONTENT TYPE SOLIX_TAB,
+    LT_DOCUMENT       TYPE REF TO CL_DOCUMENT_BCS,
+    SENDER            TYPE REF TO CL_SAPUSER_BCS,
+    RECIPIENT         TYPE REF TO IF_RECIPIENT_BCS,
+    RECIPIENT1        TYPE REF TO IF_RECIPIENT_BCS,
+    BCS_EXCEPTION     TYPE REF TO CX_BCS,
+    SENT_TO_ALL       TYPE OS_BOOLEAN,
+    LV_RECEPIENT      TYPE AD_SMTPADR,
+    LV_RECEPIENT1     TYPE AD_SMTPADR,
+    LV_SUBJECT        TYPE SO_OBJ_DES,
+    GC_TAB            TYPE C     VALUE CL_BCS_CONVERT=>GC_TAB,
+    GC_CRLF           TYPE C     VALUE CL_BCS_CONVERT=>GC_CRLF,
+    LV_STRING         TYPE STRING,
+    GT_BINARY_CONTENT TYPE SOLIX_TAB,
+    LV_LINES          TYPE I,
+    LV_DOC_SIZE       TYPE I,
+    LW_TEXT           TYPE LINE OF  BCSY_TEXT,
+    LW_RECEIVER       TYPE SOMLRECI1,
+    LV1               TYPE CHAR10,
+    LV_SIZE           TYPE I,
+    MAIN_TEXT         TYPE BCSY_TEXT,
+    LT_BINTAB         TYPE SOLIX_TAB,
+    LR_XLDIMENSION    TYPE REF TO IF_IXML_NODE,
+    LR_XLWORKSHEET    TYPE REF TO IF_IXML_ELEMENT,
+    LV_SUBJECT1       TYPE CHAR60.
+
+  LOOP AT IT_FINAL INTO WA_FINAL .
+    WA_FINAL_1-MAT_TYP = WA_FINAL-MAT_TYP.
+    WA_FINAL_1-GRP_DESP = WA_FINAL-GRP_DESP.
+    WA_FINAL_1-CONSUME_QTY = WA_FINAL-CONSUME_QTY.
+    WA_FINAL_1-CONSUME_VALUE  = WA_FINAL-CONSUME_VALUE .
+    WA_FINAL_1-1010 = WA_FINAL-AMOUNT1.
+    WA_FINAL_1-1015 = WA_FINAL-AMOUNT5.
+    WA_FINAL_1-1020 = WA_FINAL-AMOUNT2.
+    WA_FINAL_1-1025 = WA_FINAL-AMOUNT6.
+    WA_FINAL_1-1030 = WA_FINAL-AMOUNT3.
+    WA_FINAL_1-1040 = WA_FINAL-AMOUNT4.
+
+    APPEND WA_FINAL_1 TO IT_FINAL_1 .
+    CLEAR WA_FINAL_1 .
+
+  ENDLOOP . "SK
+
+
+  IF R1 = 'X'.
+*TRY.
+    SORT IT_FINAL BY PLANT .
+
+    LOOP AT IT_FINAL INTO DATA(W_FF) GROUP BY W_FF-PLANT .
+      DATA(IT_FINAL_PLANT) = IT_FINAL[] .
+      DELETE IT_FINAL_PLANT WHERE PLANT NE W_FF-PLANT .
+
+      CL_SALV_TABLE=>FACTORY( IMPORTING R_SALV_TABLE = DATA(LR_TABLE)
+                                   CHANGING  T_TABLE      = IT_FINAL_PLANT ).
+
+      LO_COLUMN = LR_TABLE->GET_COLUMNS( )->GET_COLUMN( 'AMOUNT6' ).
+      LO_COLUMN->SET_VISIBLE( VALUE = IF_SALV_C_BOOL_SAP=>FALSE ).
+
+      LO_COLUMN = LR_TABLE->GET_COLUMNS( )->GET_COLUMN( 'AMOUNT2' ).
+      LO_COLUMN->SET_VISIBLE( VALUE = IF_SALV_C_BOOL_SAP=>FALSE ).
+
+      LO_COLUMN = LR_TABLE->GET_COLUMNS( )->GET_COLUMN( 'AMOUNT1' ).
+      LO_COLUMN->SET_VISIBLE( VALUE = IF_SALV_C_BOOL_SAP=>FALSE ).
+
+      LO_COLUMN = LR_TABLE->GET_COLUMNS( )->GET_COLUMN( 'AMOUNT3' ).
+      LO_COLUMN->SET_VISIBLE( VALUE = IF_SALV_C_BOOL_SAP=>FALSE ).
+
+      LO_COLUMN = LR_TABLE->GET_COLUMNS( )->GET_COLUMN( 'AMOUNT4' ).
+      LO_COLUMN->SET_VISIBLE( VALUE = IF_SALV_C_BOOL_SAP=>FALSE ).
+
+      LO_COLUMN = LR_TABLE->GET_COLUMNS( )->GET_COLUMN( 'AMOUNT5' ).
+      LO_COLUMN->SET_VISIBLE( VALUE = IF_SALV_C_BOOL_SAP=>FALSE ).
+*      PERFORM FILL_COLUMN USING '1010' '1010' '1010' '1010' .
+*                                  field  medium - 20 , short - 10 ,  long - 40
+
+      DATA(SEND_REQUEST) = CL_BCS=>CREATE_PERSISTENT( ).
+      DATA(LV_XLSX) = LR_TABLE->TO_XML( IF_SALV_BS_XML=>C_TYPE_XLSX ).
+      DATA(LR_ZIP) = NEW CL_ABAP_ZIP( ).
+      LR_ZIP->LOAD( LV_XLSX ).
+      LR_ZIP->GET( EXPORTING NAME = 'xl/worksheets/sheet1.xml' IMPORTING CONTENT = DATA(LV_FILE) ).
+      DATA(LR_FILE) = NEW CL_XML_DOCUMENT( ).
+      LR_FILE->PARSE_XSTRING( LV_FILE ).
+* Row elements are under SheetData
+      DATA(LR_XLNODE) = LR_FILE->FIND_NODE( 'sheetData' ).
+      DATA(LR_XLROWS) = LR_XLNODE->GET_CHILDREN( ).
+* Create new element in the XML file
+      LR_XLWORKSHEET ?= LR_FILE->FIND_NODE( 'worksheet' ).
+      DATA(LR_XLSHEETPR)   = CL_IXML=>CREATE( )->CREATE_DOCUMENT( )->CREATE_ELEMENT( NAME = 'sheetPr' ).
+      DATA(LR_XLOUTLINEPR) = CL_IXML=>CREATE( )->CREATE_DOCUMENT( )->CREATE_ELEMENT( NAME = 'outlinePr' ).
+      LR_XLSHEETPR->IF_IXML_NODE~APPEND_CHILD( LR_XLOUTLINEPR ).
+      LR_XLOUTLINEPR->SET_ATTRIBUTE( NAME = 'summaryBelow' VALUE = 'false' ).
+      LR_XLDIMENSION ?= LR_FILE->FIND_NODE( 'dimension' ).
+      LR_XLWORKSHEET->IF_IXML_NODE~INSERT_CHILD( NEW_CHILD = LR_XLSHEETPR REF_CHILD = LR_XLDIMENSION ).
+* Create xstring and move it to XLSX
+      LR_FILE->RENDER_2_XSTRING( IMPORTING STREAM = LV_FILE ).
+      LR_ZIP->DELETE( EXPORTING NAME = 'xl/worksheets/sheet1.xml' ).
+      LR_ZIP->ADD( EXPORTING NAME = 'xl/worksheets/sheet1.xml' CONTENT = LV_FILE ).
+      LV_XLSX = LR_ZIP->SAVE( ).
+
+* Convert to binary
+
+
+      CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+        EXPORTING
+          BUFFER        = LV_XLSX
+        IMPORTING
+          OUTPUT_LENGTH = LV_SIZE
+        TABLES
+          BINARY_TAB    = LT_BINTAB.
+
+      REFRESH LT_TEXT.
+      LW_TEXT-LINE = 'Dear Sir/Madam,'.
+      APPEND LW_TEXT TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE =  |Please find attached the Material Consumption Report For the period from { LV_DATE1 } to { LV_DATE2 }|.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'If you have any questions, please revert to Mr. Shubham Tyagi at shubham.tyagi@arglltd.com' .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<b>Note </b>  This is computer generated email, please do not reply.|.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'Thank You'.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'Best Regards,'.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'SAP'.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LV_SUBJECT1 = 'TEST EMAIL 1'.
+      CONCATENATE LV_SUBJECT1 '.xlsx' INTO LV_SUBJECT1.
+      LV_SUBJECT = | Material Consumption Report |.
+      DATA(DOCUMENT) = CL_DOCUMENT_BCS=>CREATE_DOCUMENT( I_TYPE = 'HTM' I_TEXT = LT_TEXT I_SUBJECT = LV_SUBJECT ).
+
+
+      DATA LT_ATT_HEAD TYPE SOLI_TAB.
+      APPEND LV_SUBJECT1 TO LT_ATT_HEAD.
+      DOCUMENT->ADD_ATTACHMENT(
+        I_ATTACHMENT_TYPE    = 'xls'
+        I_ATTACHMENT_SUBJECT = ' Material Consumption Report '" && LWA_FINAL-PRTY_CD
+        I_ATTACHMENT_SIZE    = CONV SO_OBJ_LEN( LV_SIZE )
+        I_ATTACHMENT_HEADER  = LT_ATT_HEAD
+        I_ATT_CONTENT_HEX    = LT_BINTAB ).
+      SEND_REQUEST->SET_DOCUMENT( DOCUMENT ).
+
+      SELECT *
+       FROM  ZCONS_MAIL
+       INTO TABLE @DATA(IT_MAIL) WHERE PLANT = @W_FF-PLANT .
+      DELETE IT_MAIL WHERE EMAIL IS INITIAL .
+
+      LOOP AT IT_MAIL INTO DATA(WA_MAIL).
+        LV_RECEPIENT = WA_MAIL-EMAIL .
+        RECIPIENT = CL_CAM_ADDRESS_BCS=>CREATE_INTERNET_ADDRESS( LV_RECEPIENT ).
+        IF WA_MAIL-EMAIL_CODE = 'TO' .
+          CALL METHOD SEND_REQUEST->ADD_RECIPIENT
+            EXPORTING
+              I_RECIPIENT = RECIPIENT
+              I_EXPRESS   = 'X'.
+        ELSEIF WA_MAIL-EMAIL_CODE = 'CC' .
+          CALL METHOD SEND_REQUEST->ADD_RECIPIENT
+            EXPORTING
+              I_RECIPIENT = RECIPIENT
+*             I_EXPRESS   = 'X'
+              I_COPY      = 'X'.
+        ENDIF .
+        CLEAR : LV_RECEPIENT , RECIPIENT , WA_MAIL .
+
+      ENDLOOP.
+
+*     ———- send document —————————————
+      IF IT_MAIL IS NOT INITIAL .
+        TRY .
+            CALL METHOD SEND_REQUEST->SEND(
+              EXPORTING
+                I_WITH_ERROR_SCREEN = 'X'
+              RECEIVING
+                RESULT              = SENT_TO_ALL ).
+          CATCH CX_SEND_REQ_BCS .
+        ENDTRY.
+        IF SY-SUBRC = 0.
+          COMMIT WORK AND WAIT.
+          MESSAGE 'Mail Sent Successfully' TYPE 'S'.
+        ENDIF.
+      ENDIF .
+*    ELSE .
+*    MESSAGE 'Mail Cannot Be Sent ' TYPE 'I' .
+
+      REFRESH : IT_FINAL_PLANT , IT_MAIL .
+      FREE : DOCUMENT , LR_TABLE , LR_ZIP , LR_FILE , LT_BINTAB .
+      CLEAR : SEND_REQUEST , LV_XLSX , LR_XLNODE  , LR_XLROWS , LV_SIZE , LV_SUBJECT.
+    ENDLOOP .
+  ENDIF .
+
+  IF R2 = 'X' .
+
+    CL_SALV_TABLE=>FACTORY( IMPORTING R_SALV_TABLE = LR_TABLE1
+                                 CHANGING  T_TABLE      = IT_FINAL_1 ).
+
+    DATA(I_COLUMBS) = LR_TABLE1->GET_COLUMNS( ).
+    I_COLUMBS->SET_OPTIMIZE( VALUE = IF_SALV_C_BOOL_SAP=>TRUE ).
+
+    PERFORM FILL_COLUMN1 USING '1010' '1010' '1010' '1010' .
+    PERFORM FILL_COLUMN1 USING '1015' '1015' '1015' '1015' .
+    PERFORM FILL_COLUMN1 USING '1020' '1020' '1020' '1020' .
+    PERFORM FILL_COLUMN1 USING '1025' '1025' '1025' '1025' .
+    PERFORM FILL_COLUMN1 USING '1030' '1030' '1030' '1030' .
+    PERFORM FILL_COLUMN1 USING '1040' '1040' '1040' '1040' .
+*                                  field  medium - 20 , short - 10 ,  long - 40
+
+    DATA(SEND_REQUEST1) = CL_BCS=>CREATE_PERSISTENT( ).
+
+    DATA(LV_XLSX1) = LR_TABLE1->TO_XML( IF_SALV_BS_XML=>C_TYPE_XLSX ).
+    DATA(LR_ZIP1) = NEW CL_ABAP_ZIP( ).
+    LR_ZIP1->LOAD( LV_XLSX1 ).
+    LR_ZIP1->GET( EXPORTING NAME = 'xl/worksheets/sheet1.xml' IMPORTING CONTENT = DATA(LV_FILE1) ).
+    DATA(LR_FILE1) = NEW CL_XML_DOCUMENT( ).
+    LR_FILE1->PARSE_XSTRING( LV_FILE1 ).
+* Row elements are under SheetData
+    DATA(LR_XLNODE1) = LR_FILE1->FIND_NODE( 'sheetData' ).
+    DATA(LR_XLROWS1) = LR_XLNODE1->GET_CHILDREN( ).
+* Create new element in the XML file
+    LR_XLWORKSHEET ?= LR_FILE1->FIND_NODE( 'worksheet' ).
+    DATA(LR_XLSHEETPR12)   = CL_IXML=>CREATE( )->CREATE_DOCUMENT( )->CREATE_ELEMENT( NAME = 'sheetPr' ).
+    DATA(LR_XLOUTLINEPR12) = CL_IXML=>CREATE( )->CREATE_DOCUMENT( )->CREATE_ELEMENT( NAME = 'outlinePr' ).
+    LR_XLSHEETPR12->IF_IXML_NODE~APPEND_CHILD( LR_XLOUTLINEPR ).
+    LR_XLOUTLINEPR12->SET_ATTRIBUTE( NAME = 'summaryBelow' VALUE = 'false' ).
+    LR_XLDIMENSION ?= LR_FILE1->FIND_NODE( 'dimension' ).
+    LR_XLWORKSHEET->IF_IXML_NODE~INSERT_CHILD( NEW_CHILD = LR_XLSHEETPR REF_CHILD = LR_XLDIMENSION ).
+* Create xstring and move it to XLSX
+    LR_FILE1->RENDER_2_XSTRING( IMPORTING STREAM = LV_FILE1 ).
+    LR_ZIP1->DELETE( EXPORTING NAME = 'xl/worksheets/sheet1.xml' ).
+    LR_ZIP1->ADD( EXPORTING NAME = 'xl/worksheets/sheet1.xml' CONTENT = LV_FILE1 ).
+    LV_XLSX1 = LR_ZIP1->SAVE( ).
+
+* " Convert to binary
+*    DATA(SEND_REQUEST1) = CL_BCS=>CREATE_PERSISTENT( ).
+    CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+      EXPORTING
+        BUFFER        = LV_XLSX1
+      IMPORTING
+        OUTPUT_LENGTH = LV_SIZE
+      TABLES
+        BINARY_TAB    = LT_BINTAB.
+
+      REFRESH LT_TEXT.
+      LW_TEXT-LINE = 'Dear Sir/Madam,'.
+      APPEND LW_TEXT TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE =  |Please find attached the Material Consumption Report For the period from { LV_DATE1 } to { LV_DATE2 }|.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'If you have any questions, please revert to Mr. Shubham Tyagi at shubham.tyagi@arglltd.com' .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<b>Note </b>  This is computer generated email, please do not reply.|.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'Thank You'.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'Best Regards,'.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = |<br></br>| .
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LW_TEXT-LINE = 'SAP'.
+      APPEND LW_TEXT-LINE TO LT_TEXT.
+      CLEAR LW_TEXT.
+      LV_SUBJECT1 = 'TEST EMAIL 1'.
+    CONCATENATE LV_SUBJECT1 '.xlsx' INTO LV_SUBJECT1.
+    LV_SUBJECT = | Material Consumption Report |.
+    DATA(DOCUMENT1) = CL_DOCUMENT_BCS=>CREATE_DOCUMENT( I_TYPE = 'HTM' I_TEXT = LT_TEXT I_SUBJECT = LV_SUBJECT ).
+
+
+    DATA LT_ATT_HEAD1 TYPE SOLI_TAB.
+    APPEND LV_SUBJECT1 TO LT_ATT_HEAD.
+    DOCUMENT1->ADD_ATTACHMENT(
+      I_ATTACHMENT_TYPE    = 'xls'
+      I_ATTACHMENT_SUBJECT = ' Material Consumption Report '" && LWA_FINAL-PRTY_CD
+      I_ATTACHMENT_SIZE    = CONV SO_OBJ_LEN( LV_SIZE )
+      I_ATTACHMENT_HEADER  = LT_ATT_HEAD1
+      I_ATT_CONTENT_HEX    = LT_BINTAB ).
+    SEND_REQUEST1->SET_DOCUMENT( DOCUMENT1 ).
+
+    SELECT *
+     FROM  ZCONS_MAIL
+     INTO TABLE @DATA(IT_MAIL1) WHERE PLANT = '' . " @W_FF1-PLANT .
+    DELETE IT_MAIL1 WHERE EMAIL IS INITIAL .
+
+    LOOP AT IT_MAIL1 INTO WA_MAIL.
+      LV_RECEPIENT = WA_MAIL-EMAIL .
+      RECIPIENT = CL_CAM_ADDRESS_BCS=>CREATE_INTERNET_ADDRESS( LV_RECEPIENT ).
+      IF WA_MAIL-EMAIL_CODE = 'TO' .
+        CALL METHOD SEND_REQUEST1->ADD_RECIPIENT
+          EXPORTING
+            I_RECIPIENT = RECIPIENT
+            I_EXPRESS   = 'X'.
+      ELSEIF WA_MAIL-EMAIL_CODE = 'CC' .
+        CALL METHOD SEND_REQUEST1->ADD_RECIPIENT
+          EXPORTING
+            I_RECIPIENT = RECIPIENT
+*           I_EXPRESS   = 'X'
+            I_COPY      = 'X'.
+      ENDIF .
+      CLEAR : LV_RECEPIENT , RECIPIENT , WA_MAIL .
+
+    ENDLOOP.
+
+*     ———- send document —————————————
+    IF IT_MAIL1 IS NOT INITIAL .
+      TRY . " 05.02.2025
+          CALL METHOD SEND_REQUEST1->SEND(
+            EXPORTING
+              I_WITH_ERROR_SCREEN = 'X'
+            RECEIVING
+              RESULT              = SENT_TO_ALL ).
+        CATCH CX_SEND_REQ_BCS . "
+      ENDTRY."
+      IF SY-SUBRC = 0.
+        COMMIT WORK AND WAIT.
+        MESSAGE 'Mail Sent Successfully' TYPE 'S'.
+      ENDIF.
+    ENDIF .
+*    ELSE .
+*    MESSAGE 'Mail Cannot Be Sent ' TYPE 'I' .
+
+    REFRESH : IT_FINAL_1 , IT_MAIL .
+    FREE : DOCUMENT1 , LR_TABLE1 , LR_ZIP1 , LR_FILE1 , LT_BINTAB .
+    CLEAR : SEND_REQUEST1 , LV_XLSX1 , LR_XLNODE1  , LR_XLROWS1 , LV_SIZE , LV_SUBJECT.
+*    ENDLOOP.
+  ENDIF .
+
+
+ENDFORM.
+
+FORM FILL_COLUMN  USING    VALUE(P1)
+                           VALUE(P2)
+                           VALUE(P3)
+                           VALUE(P4).
+
+  LO_COLUMN = LR_TABLE->GET_COLUMNS( )->GET_COLUMN( P1 ).
+  LO_COLUMN->SET_MEDIUM_TEXT( P2 ).
+  LO_COLUMN->SET_SHORT_TEXT( P3 ).
+  LO_COLUMN->SET_LONG_TEXT( P4 ).
+
+ENDFORM.
+
+FORM FILL_COLUMN1  USING    VALUE(P1)
+                           VALUE(P2)
+                           VALUE(P3)
+                           VALUE(P4).
+
+  LO_COLUMN = LR_TABLE1->GET_COLUMNS( )->GET_COLUMN( P1 ).
+  LO_COLUMN->SET_MEDIUM_TEXT( P2 ).
+  LO_COLUMN->SET_SHORT_TEXT( P3 ).
+  LO_COLUMN->SET_LONG_TEXT( P4 ).
+
+ENDFORM.

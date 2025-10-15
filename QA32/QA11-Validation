@@ -1,0 +1,26 @@
+ENHANCEMENT 1  ZQALS_UPDATE.    "active version
+
+"SK~26.05.2025
+
+IF  rqeva-neu_mat IS NOT INITIAL AND rqeva-neu_mat NE qals-selmatnr  .
+  IF ( p_fcode = 'BU' OR  p_fcode = 'ENTE' ) AND sy-tcode = 'QA11'.
+    DATA : LV TYPE qals-prueflos.
+    LV  =  qals-prueflos .
+
+    SELECT SINGLE aufnr FROM qals INTO @DATA(tx) WHERE prueflos = @LV AND art = '04' .
+    IF tx IS NOT INITIAL.
+      SELECT * FROM resb INTO TABLE @DATA(lt_ta) WHERE aufnr = @tx AND matnr = @rqeva-neu_mat.
+      IF sy-subrc NE 0.
+        MESSAGE 'Please maintain BOM material' TYPE 'E' DISPLAY LIKE 'E' .
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+ENDIF.
+
+IF SY-UCOMM = 'PICK' OR  SY-UCOMM = 'NB' OR SY-UCOMM = 'BB' OR  SY-UCOMM = 'YES' OR SY-UCOMM = 'BACK' OR SY-UCOMM = 'NO' OR SY-UCOMM = 'SAVE' OR  SY-UCOMM = 'ENTE'
+IF RQEVA-QLGO_VM06 IS INITIAL.
+     RQEVA-QLGO_VM06 = 'VRST' .
+ENDIF.
+ENDIF.
+"SK~26.05.2025

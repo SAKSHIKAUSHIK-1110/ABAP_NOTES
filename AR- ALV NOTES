@@ -1,0 +1,882 @@
+ALV REPORT with structure 
+
+1)Business Req: Develop a Material master ALV Report to display all fields 
+
+TABLES  : MARA.
+DATA: I_MARA TYPE TABLE OF MARA.
+DATA: WA_MARA TYPE MARA.
+SELECT-OPTIONS SO_MATNR FOR MARA-MATNR.
+PARAMETERS P_MTART TYPE MARA-MTART.
+
+START-OF-SELECTION.
+  PERFORM GET_DATA.
+  PERFORM DISPLAY_DATA.
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM GET_DATA .
+SELECT * FROM MARA INTO TABLE I_MARA WHERE MATNR IN SO_MATNR AND MTART = 'FERT'.
+ENDFORM.                    " GET_DATA
+
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM DISPLAY_DATA .
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+   I_CALLBACK_PROGRAM                = 'SY-REPID'
+   I_STRUCTURE_NAME                  = 'MARA'
+  TABLES
+    T_OUTTAB                          = I_MARA.
+
+ENDFORM.                    " DISPLAY_DATA
+The Input Screen  as below.
+ 
+The Output  Screen as below.
+ 
+Note: When we want all the fields from a table, then we use STRUCTURE
+
+ALV REPORT with Fieldcatelog 
+
+1)Business Req: Develop a Material master ALV Report to display MATNR,MTART, MBRSH,MEINS fields
+type-pools: SLIS.
+TABLES MARA.
+
+TYPES:BEGIN OF TY_MARA,
+      MATNR TYPE MARA-MATNR,
+      MTART TYPE MARA-MTART,
+      MBRSH TYPE MARA-MBRSH,
+      MEINS TYPE MARA-MEINS,
+      END OF TY_MARA.
+
+DATA : I_MARA TYPE TABLE OF TY_MARA.
+DATA : WA_MARA TYPE TY_MARA.
+DATA : I_FCAT TYPE  SLIS_T_FIELDCAT_ALV.
+DATA : WA_FCAT LIKE LINE OF  I_FCAT.
+* DATA: WA_FCAT TYPE SLIS_FIELDCAT_ALV.
+
+SELECT-OPTIONS SO_MATNR FOR MARA-MATNR.
+
+START-OF-SELECTION.
+   PERFORM GET_DATA.
+   PERFORM CREATE_FCAT.
+   PERFORM DISPLAY.
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM GET_DATA .
+SELECT * FROM MARA INTO CORRESPONDING FIELDS OF TABLE I_MARA
+                                    WHERE MATNR IN SO_MATNR.
+ENDFORM.                    " GET_DATA
+
+
+
+
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM DISPLAY .
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+   I_CALLBACK_PROGRAM                = 'SY-REPID'
+   IT_FIELDCAT                       = I_FCAT
+  TABLES
+    T_OUTTAB                          = I_MARA.
+
+ENDFORM.                    " DISPLAY
+
+FORM CREATE_FCAT .
+
+WA_FCAT-col_pos = '1'.
+WA_FCAT-FIELDNAME = 'MATNR'.
+WA_FCAT-TABNAME = 'I_MARA'.
+WA_FCAT-REF_FIELDNAME = 'MATNR'.
+WA_FCAT-REF_TABNAME = 'MARA'.
+WA_FCAT-SELTEXT_M = 'MATERIAL NO'.
+WA_FCAT-KEY = 'X'.
+WA_FCAT-HOTSPOT = 'X'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+
+WA_FCAT-COL_POS = '2'.
+WA_FCAT-FIELDNAME = 'MTART'.
+WA_FCAT-TABNAME = 'I_MARA'.
+WA_FCAT-SELTEXT_M = 'MATERIAL TYPE'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+
+WA_FCAT-COL_POS = '3'.
+WA_FCAT-FIELDNAME = 'MBRSH'.
+WA_FCAT-TABNAME = 'I_MARA'.
+WA_FCAT-EMPHASIZE = 'C601'.
+WA_FCAT-SELTEXT_M = 'IND.SECTOR'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+
+WA_FCAT-COL_POS = '4'.
+WA_FCAT-FIELDNAME = 'MEINS'.
+WA_FCAT-TABNAME = 'I_MARA'.
+WA_FCAT-EDIT = 'X'.
+WA_FCAT-SELTEXT_M = 'MATERIAL UNITS'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+ENDFORM.                    " CREATE_FCAT
+
+The Input Screen  as below.
+ 
+
+
+
+
+The Output  Screen as below.
+ 
+Note: When we want limited fields from a table, then we use fieldcatelog 
+
+
+
+
+
+
+
+
+
+
+ALV REPORT with Fieldcatelog_Merge 
+
+1)Business Req: Develop a Material master ALV Report to display DATA using fieldcatalog merge. 
+TYPE-POOLS : SLIS.
+
+TYPES:BEGIN OF TY_MARA,
+      MATNR TYPE MARA-MATNR,
+      MTART TYPE MARA-MTART,
+      MBRSH TYPE MARA-MBRSH,
+      MEINS TYPE MARA-MEINS,
+      END OF TY_MARA.
+
+DATA : I_MARA TYPE TABLE OF TY_MARA.
+DATA : WA_MARA TYPE TY_MARA.
+DATA : I_FCAT TYPE  SLIS_T_FIELDCAT_ALV.
+DATA : WA_FCAT LIKE LINE OF  I_FCAT.
+
+START-OF-SELECTION.
+   PERFORM GET_DATA.
+   PERFORM CREATE_FCAT.
+   PERFORM DISPLAY.
+
+FORM GET_DATA .
+SELECT MATNR MTART MBRSH MEINS FROM MARA INTO TABLE
+                              I_MARA UP TO 100 ROWS.
+ENDFORM.
+
+FORM DISPLAY .
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+   I_CALLBACK_PROGRAM                = 'SY-REPID'
+   IT_FIELDCAT                       = I_FCAT
+  TABLES
+   T_OUTTAB                          = I_MARA.
+
+ENDFORM.
+
+FORM CREATE_FCAT .
+CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+ EXPORTING
+   I_PROGRAM_NAME               = 'SY-REPID'
+   I_STRUCTURE_NAME             = 'MARA'
+  CHANGING
+    CT_FIELDCAT                  = I_FCAT.
+
+LOOP AT I_FCAT INTO WA_FCAT.
+  WA_FCAT-NO_OUT = 'X'.
+  IF WA_FCAT-FIELDNAME = 'MATNR' OR
+     WA_FCAT-FIELDNAME = 'MTART' OR
+     WA_FCAT-FIELDNAME = 'MBRSH' OR
+     WA_FCAT-FIELDNAME = 'MEINS'.
+     WA_FCAT-NO_OUT = ' '.
+  ENDIF.
+  MODIFY I_FCAT FROM WA_FCAT INDEX SY-TABIX.
+ENDLOOP.
+ENDFORM.                    " CREATE_FCAT
+
+The Output  Screen as below.
+ 
+
+Note: When we want fieldcatelog to be generated automatically, then we use REUSE_FIELDCATELOG_MERGE. 
+ALV REPORT with Layout Options 
+
+TYPE-POOLS : SLIS.
+
+TYPES:BEGIN OF TY_MARA,
+      MATNR TYPE MARA-MATNR,
+      MTART TYPE MARA-MTART,
+      MBRSH TYPE MARA-MBRSH,
+      MEINS TYPE MARA-MEINS,
+      END OF TY_MARA.
+
+DATA : I_MARA TYPE TABLE OF TY_MARA.
+DATA : WA_MARA TYPE TY_MARA.
+DATA : I_FCAT TYPE  SLIS_T_FIELDCAT_ALV.
+DATA : WA_FCAT LIKE LINE OF  I_FCAT.
+DATA : WA_LAYOUT TYPE SLIS_LAYOUT_ALV.
+
+START-OF-SELECTION.
+   PERFORM GET_DATA.
+   PERFORM CREATE_FCAT.
+   PERFORM DESIGN_LAYOUT.
+   PERFORM DISPLAY.
+
+FORM GET_DATA .
+SELECT MATNR MTART MBRSH MEINS FROM MARA INTO TABLE
+                              I_MARA UP TO 100 ROWS.
+ENDFORM.
+
+FORM CREATE_FCAT .
+
+WA_FCAT-col_pos = '1'.
+WA_FCAT-FIELDNAME = 'MATNR'.
+WA_FCAT-TABNAME = 'I_MARA'.
+WA_FCAT-REF_FIELDNAME = 'MATNR'.
+WA_FCAT-REF_TABNAME = 'MARA'.
+WA_FCAT-SELTEXT_M = 'MATERIAL NO'.
+WA_FCAT-KEY = 'X'.
+WA_FCAT-HOTSPOT = 'X'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+
+WA_FCAT-COL_POS = '2'.
+WA_FCAT-FIELDNAME = 'MTART'.
+WA_FCAT-TABNAME = 'I_MARA'.
+WA_FCAT-SELTEXT_M = 'MATERIAL TYPE'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+
+WA_FCAT-COL_POS = '3'.
+WA_FCAT-FIELDNAME = 'MBRSH'.
+WA_FCAT-TABNAME = 'I_MARA'.
+WA_FCAT-EMPHASIZE = 'C601'.
+WA_FCAT-SELTEXT_M = 'IND.SECTOR'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+
+WA_FCAT-COL_POS = '4'.
+WA_FCAT-FIELDNAME = 'MEINS'.
+WA_FCAT-TABNAME = 'I_MARA'.
+*WA_FCAT-EDIT = 'X'.
+WA_FCAT-SELTEXT_M = 'MATERIAL UNITS'.
+APPEND WA_FCAT TO I_FCAT.
+CLEAR WA_FCAT.
+ENDFORM.
+
+FORM DESIGN_LAYOUT.
+WA_LAYOUT-ZEBRA = 'X'.
+WA_LAYOUT-COLWIDTH_OPTIMIZE = 'X'.
+WA_LAYOUT-EDIT = 'X'.
+WA_LAYOUT-NO_VLINE = 'X'.
+WA_LAYOUT-NO_HLINE = 'X'.
+ENDFORM.
+
+FORM DISPLAY .
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+   I_CALLBACK_PROGRAM                = 'SY-REPID'
+   IS_LAYOUT                         = WA_LAYOUT
+   IT_FIELDCAT                       = I_FCAT
+  TABLES
+   T_OUTTAB                          = I_MARA.
+
+ENDFORM.
+
+
+
+
+
+
+ALV REPORT with GrandTotals&SubTotals 
+
+
+TYPE-POOLS : SLIS .
+TYPES : BEGIN OF TY_VBAP,
+        VBELN TYPE VBAP-VBELN,
+        POSNR TYPE VBAP-POSNR,
+        MATNR TYPE VBAP-MATNR,
+        NETPR TYPE VBAP-NETPR,
+        END OF TY_VBAP.
+DATA : I_VBAP TYPE TABLE OF TY_VBAP .
+DATA : WA_VBAP TYPE TY_VBAP .
+
+*ALV DECLARATIONS
+DATA : I_FCAT TYPE SLIS_T_FIELDCAT_ALV .
+DATA : WA_FCAT TYPE SLIS_FIELDCAT_ALV .
+DATA : I_SORT TYPE SLIS_T_SORTINFO_ALV .
+DATA : WA_SORT LIKE LINE OF I_SORT .
+DATA : V_POS TYPE I .
+
+START-OF-SELECTION .
+PERFORM GET_DATA .
+PERFORM CREATE_FCAT .
+PERFORM CALC_SUBTOTALS.
+PERFORM DISPLAY_DATA .
+END-OF-SELECTION .
+
+*&---------------------------------------------------------------------*
+*& Form get_data
+*&---------------------------------------------------------------------*
+FORM GET_DATA .
+  SELECT * FROM VBAP INTO CORRESPONDING FIELDS OF TABLE I_VBAP UP TO 100 ROWS .
+ENDFORM. " get_data
+
+*&---------------------------------------------------------------------*
+*& Form create_fcat
+*&---------------------------------------------------------------------*
+FORM CREATE_FCAT .
+  V_POS = 1 .
+  WA_FCAT-COL_POS = V_POS.
+  WA_FCAT-FIELDNAME = 'VBELN' .
+  WA_FCAT-SELTEXT_M = 'Salesdoc.NO' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  
+  V_POS = V_POS + 1.
+  WA_FCAT-COL_POS = V_POS .
+  WA_FCAT-FIELDNAME = 'POSNR' .
+  WA_FCAT-SELTEXT_M = 'Itemno' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  V_POS = V_POS + 1.
+  WA_FCAT-COL_POS = V_POS .
+  WA_FCAT-FIELDNAME = 'MATNR' .
+  WA_FCAT-SELTEXT_M = 'Material NO' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  V_POS = V_POS + 1.
+  WA_FCAT-COL_POS = V_POS .
+  WA_FCAT-FIELDNAME = 'NETPR' .
+  WA_FCAT-SELTEXT_M = 'Netprice' .
+  WA_FCAT-DO_SUM = 'X' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+  ENDFORM. " create_fcat
+
+  FORM DISPLAY_DATA .
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      I_CALLBACK_PROGRAM = SY-REPID
+      IT_FIELDCAT = I_FCAT
+      IT_SORT = I_SORT
+      TABLES
+        T_OUTTAB = I_VBAP.
+  ENDFORM.
+
+  FORM CALC_SUBTOTALS .
+    WA_SORT-FIELDNAME = 'VBELN' .
+    WA_SORT-UP = 'X' .
+    WA_SORT-SUBTOT = 'X' .
+    APPEND WA_SORT TO I_SORT .
+  ENDFORM.
+
+
+
+
+
+The Output  Screen as below.
+ 
+
+
+
+
+
+
+
+
+ALV REPORT with TOP-OF-PAGE/ENDOFLIST/LOGO 
+
+TYPE-POOLS : SLIS .
+
+*DATA DECLARAATIONS
+DATA : I_MARA TYPE TABLE OF MARA .
+DATA : WA_MARA TYPE MARA .
+DATA : V_DATE TYPE C.
+WRITE SY-DATUM TO V_DATE.
+
+*ALV DECLARATIONS
+DATA : I_FCAT TYPE SLIS_T_FIELDCAT_ALV .
+DATA : WA_FCAT TYPE SLIS_FIELDCAT_ALV .
+DATA : V_POS TYPE I .
+DATA : I_EVENTS TYPE SLIS_T_EVENT .
+DATA : WA_EVENTS LIKE LINE OF I_EVENTS .
+DATA : I_HEADING TYPE SLIS_T_LISTHEADER .
+DATA : WA_HEADING LIKE LINE OF I_HEADING .
+
+START-OF-SELECTION .
+  PERFORM GET_DATA .
+  PERFORM CREATE_FCAT .
+  PERFORM GET_EVENTS .
+  PERFORM DISPLAY_DATA .
+
+END-OF-SELECTION .
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM GET_DATA .
+  SELECT * FROM MARA INTO TABLE I_MARA UP TO 100 ROWS .
+ENDFORM.                    "GET_DATA
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM DISPLAY_DATA .
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      I_CALLBACK_PROGRAM = SY-REPID
+      IT_FIELDCAT        = I_FCAT
+      IT_EVENTS          = I_EVENTS
+    TABLES
+      T_OUTTAB           = I_MARA.
+ENDFORM.                    "DISPLAY_DATA
+
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_FCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM CREATE_FCAT .
+  V_POS = 1 .
+  WA_FCAT-COL_POS = V_POS.
+  WA_FCAT-FIELDNAME = 'MATNR' .
+  WA_FCAT-SELTEXT_M = 'Material.NO' .
+  WA_FCAT-HOTSPOT = 'X' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  V_POS = V_POS + 1.
+  WA_FCAT-COL_POS = V_POS .
+  WA_FCAT-FIELDNAME = 'MTART' .
+  WA_FCAT-SELTEXT_M = 'Material.Type' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  V_POS = V_POS + 1.
+  WA_FCAT-COL_POS = V_POS .
+  WA_FCAT-FIELDNAME = 'MBRSH' .
+  WA_FCAT-SELTEXT_M = 'Ind.Sector' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  V_POS = V_POS + 1.
+  WA_FCAT-COL_POS = V_POS .
+  WA_FCAT-FIELDNAME = 'MATKL' .
+  WA_FCAT-SELTEXT_M = 'Mat.Grp' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  V_POS = V_POS + 1.
+  WA_FCAT-COL_POS = V_POS .
+  WA_FCAT-FIELDNAME = 'MEINS' .
+  WA_FCAT-SELTEXT_M = 'Units' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+ENDFORM.                    "CREATE_FCAT
+
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_EVENTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM GET_EVENTS .
+  CALL FUNCTION 'REUSE_ALV_EVENTS_GET'
+*    EXPORTING
+*     I_LIST_TYPE = 0
+  IMPORTING
+    ET_EVENTS = I_EVENTS .
+
+*   ******** TOP OF PAGE
+  READ TABLE I_EVENTS INTO WA_EVENTS WITH KEY NAME = 'TOP_OF_PAGE' .
+  WA_EVENTS-FORM = 'FORM_TOP_OF_PAGE' .
+  MODIFY I_EVENTS FROM WA_EVENTS INDEX SY-TABIX .
+
+*    ***********END OF LIST
+  READ TABLE I_EVENTS INTO WA_EVENTS WITH KEY NAME = 'END_OF_LIST' .
+  WA_EVENTS-FORM = 'FORM_END_OF_LIST' .
+  MODIFY I_EVENTS FROM WA_EVENTS INDEX SY-TABIX .
+ENDFORM.                    "GET_EVENTS
+
+*&---------------------------------------------------------------------*
+*&      Form  FORM_TOP_OF_PAGE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM FORM_TOP_OF_PAGE .
+  WA_HEADING-TYP = 'H' .
+*    * WA_HEADING-KEY = 'H' .
+  WA_HEADING-INFO = 'MATERIAL MASTER REPORT' .
+  APPEND WA_HEADING TO I_HEADING .
+
+  WA_HEADING-TYP = 'S' .
+  WA_HEADING-KEY = 'USERNAME:' .
+  WA_HEADING-INFO = SY-UNAME .
+  APPEND WA_HEADING TO I_HEADING .
+  WA_HEADING-TYP = 'S'.
+  WA_HEADING-KEY = 'DATE:'.
+  WA_HEADING-INFO = V_DATE.
+  APPEND WA_HEADING TO I_HEADING .
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      IT_LIST_COMMENTARY = I_HEADING
+      I_LOGO             = 'HANU'.
+ENDFORM .                    "FORM_TOP_OF_PAGE
+*&---------------------------------------------------------------------*
+*&      Form  FORM_END_OF_LIST
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM FORM_END_OF_LIST .
+  REFRESH I_HEADING .
+  CLEAR WA_HEADING .
+  WA_HEADING-TYP = 'S' .
+  WA_HEADING-INFO = 'ALL RIGHTS ARE RESERVED TO 
+                     THE COMPANY IBM INDIA PVT.LTD' .
+  APPEND WA_HEADING TO I_HEADING .
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      IT_LIST_COMMENTARY = I_HEADING
+      I_END_OF_LIST_GRID = 'X'.
+ ENDFORM .                    "FORM_END_OF_LIST
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The Output  Screen as below.
+ 
+
+
+
+
+
+
+
+
+
+Interactive ALV 
+
+TYPE-POOLS : SLIS.
+
+************ DATA DECLARATIONS
+DATA : I_VBAK TYPE TABLE OF VBAK.
+DATA : WA_VBAK TYPE VBAK.
+DATA : I_VBAP TYPE TABLE OF VBAP.
+DATA : WA_VBAP TYPE VBAP.
+DATA : V_VBELN TYPE VBAK-VBELN.
+
+************ ALV DECLARATIONS
+DATA : I_EVENTS TYPE SLIS_T_EVENT .
+DATA : WA_EVENTS LIKE LINE OF I_EVENTS.
+DATA : I_FCAT TYPE SLIS_T_FIELDCAT_ALV.
+DATA : WA_FCAT LIKE LINE OF I_FCAT.
+
+START-OF-SELECTION.
+  PERFORM GET_DATA.
+  PERFORM get_events.
+  PERFORM DISPALY_DATA.
+
+END-OF-SELECTION.
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM GET_DATA.
+  SELECT * FROM VBAK INTO CORRESPONDING FIELDS OF TABLE I_VBAK
+            UP TO 100 ROWS.
+ENDFORM.                    "GET_DATA
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPALY_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM DISPALY_DATA.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      I_CALLBACK_PROGRAM = SY-REPID
+      I_STRUCTURE_NAME   = 'VBAK'
+      IT_EVENTS          = I_EVENTS
+    TABLES
+      T_OUTTAB           = I_VBAK.
+ENDFORM.                    "DISPALY_DATA
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_EVENTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM GET_EVENTS.
+  CALL FUNCTION 'REUSE_ALV_EVENTS_GET'
+    IMPORTING
+      ET_EVENTS = i_events.
+  READ TABLE I_EVENTS INTO WA_EVENTS WITH KEY NAME = 'USER_COMMAND'.
+  WA_EVENTS-FORM = 'FORM_USER_COMMAND'.
+  MODIFY I_EVENTS FROM WA_EVENTS INDEX SY-TABIX.
+
+ENDFORM.                    "GET_EVENTS
+
+*&---------------------------------------------------------------------*
+*&      Form  FORM_USER_COMMAND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->UCOMM      text
+*      -->SELFIELD   text
+*----------------------------------------------------------------------*
+FORM FORM_USER_COMMAND USING UCOMM TYPE SY-UCOMM
+                             SELFIELD TYPE SLIS_SELFIELD.
+  READ TABLE I_VBAK INTO WA_VBAK INDEX SELFIELD-TABINDEX.
+
+  SELECT * FROM VBAP INTO CORRESPONDING FIELDS OF TABLE I_VBAP
+                     WHERE VBELN = WA_VBAK-VBELN.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      I_CALLBACK_PROGRAM = SY-REPID
+      I_STRUCTURE_NAME   = 'VBAP'
+    TABLES
+      T_OUTTAB           = I_VBAP.
+
+
+ENDFORM.                    "FORM_USER_COMMAND
+
+
+
+
+The Output  Screen as below.
+ 
+
+
+
+
+
+
+
+
+
+
+Double Click on Any "VBELN" No , It will displays Secondary List As Below.
+ 
+
+
+
+
+
+
+
+
+
+Hierarchial ALV 
+
+TYPE-POOLS : SLIS .
+
+TYPES : BEGIN OF TY_VBAK,
+        VBELN TYPE VBAK-VBELN,
+        VKORG TYPE VBAK-VKORG,
+        VTWEG TYPE VBAK-VTWEG,
+        END OF TY_VBAK.
+
+TYPES : BEGIN OF TY_VBAP,
+        VBELN TYPE VBAP-VBELN,
+        POSNR TYPE VBAP-POSNR,
+        MATNR TYPE VBAP-MATNR,
+        NETWR TYPE VBAP-NETWR,
+        END OF TY_VBAP.
+
+DATA : I_VBAK TYPE TABLE OF TY_VBAK .
+DATA : I_VBAP TYPE TABLE OF TY_VBAP.
+DATA : WA_VBAK TYPE TY_VBAK.
+DATA : WA_VBAP TYPE TY_VBAP.
+
+DATA : I_FCAT TYPE SLIS_T_FIELDCAT_ALV .
+DATA : WA_FCAT LIKE LINE OF I_FCAT .
+DATA : I_SORT TYPE SLIS_T_SORTINFO_ALV.
+DATA : WA_SORT LIKE LINE OF I_SORT.
+DATA : KEY TYPE SLIS_KEYINFO_ALV .
+
+START-OF-SELECTION .
+  PERFORM GET_DATA_VBAK .
+  PERFORM GET_DATA_VBAP .
+  PERFORM CREATE_FCAT.
+  PERFORM CALC_SUB_TOTALS.
+  PERFORM CREATE_HIERARCHY.
+  PERFORM DISPLAY_ALV .
+
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA_VBAK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM GET_DATA_VBAK .
+  SELECT * FROM VBAK INTO CORRESPONDING FIELDS OF TABLE I_VBAK UP TO 100 ROWS .
+ENDFORM.                    "GET_DATA_VBAK
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA_VBAP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM GET_DATA_VBAP .
+  IF I_VBAK IS NOT INITIAL .
+    SELECT * FROM VBAP INTO CORRESPONDING FIELDS OF TABLE I_VBAP
+      FOR ALL ENTRIES IN I_VBAK WHERE VBELN = I_VBAK-VBELN .
+  ENDIF .
+ENDFORM.                    "GET_DATA_VBAP
+
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_FCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM CREATE_FCAT .
+  WA_FCAT-COL_POS = '1' .
+  WA_FCAT-FIELDNAME = 'VBELN' .
+  WA_FCAT-TABNAME = 'I_VBAK' .
+  WA_FCAT-SELTEXT_M = 'Doc.NO' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  WA_FCAT-COL_POS = '2' .
+  WA_FCAT-FIELDNAME = 'VKORG' .
+  WA_FCAT-TABNAME = 'I_VBAK' .
+  WA_FCAT-SELTEXT_M = 'SalesOrg' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  WA_FCAT-COL_POS = '3' .
+  WA_FCAT-FIELDNAME = 'VTWEG' .
+  WA_FCAT-TABNAME = 'I_VBAK' .
+  WA_FCAT-SELTEXT_M = 'D.CHANNEL' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  WA_FCAT-COL_POS = '4' .
+  WA_FCAT-FIELDNAME = 'POSNR' .
+  WA_FCAT-TABNAME = 'I_VBAP' .
+  WA_FCAT-SELTEXT_M = 'ITEM.NO' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  WA_FCAT-COL_POS = '5' .
+  WA_FCAT-FIELDNAME = 'MATNR' .
+  WA_FCAT-TABNAME = 'I_VBAP' .
+  WA_FCAT-SELTEXT_M = 'MAT.NO' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+
+  WA_FCAT-COL_POS = '6' .
+  WA_FCAT-FIELDNAME = 'NETWR' .
+  WA_FCAT-TABNAME = 'I_VBAP' .
+  WA_FCAT-DO_SUM = 'X'.
+  WA_FCAT-SELTEXT_M = 'NET.PRICE' .
+  APPEND WA_FCAT TO I_FCAT .
+  CLEAR WA_FCAT .
+ENDFORM.                    "CREATE_FCAT
+
+*&---------------------------------------------------------------------*
+*&      Form  CALC_SUB_TOTALS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM CALC_SUB_TOTALS.
+  WA_SORT-FIELDNAME = 'VBELN'.
+  WA_SORT-UP = 'X'.
+  WA_SORT-SUBTOT = 'X'.
+  APPEND WA_SORT TO I_SORT.
+ENDFORM.                    "CALC_SUB_TOTALS
+
+
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_HIERARCHY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM CREATE_HIERARCHY .
+  KEY-HEADER01 = 'VBELN' .
+  KEY-ITEM01 = 'VBELN' .
+ENDFORM.                    "CREATE_HIERARCHY
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM DISPLAY_ALV .
+  CALL FUNCTION 'REUSE_ALV_HIERSEQ_LIST_DISPLAY'
+    EXPORTING
+      I_CALLBACK_PROGRAM = SY-REPID
+      IT_FIELDCAT        = I_FCAT
+      IT_SORT            = I_SORT
+      I_TABNAME_HEADER   = 'I_VBAK'
+      I_TABNAME_ITEM     = 'I_VBAP'
+      IS_KEYINFO         = KEY
+    TABLES
+      T_OUTTAB_HEADER    = I_VBAK
+      T_OUTTAB_ITEM      = I_VBAP.
+ENDFORM.                    "DISPLAY_ALV
+
+The Output  Screen as below.
+ 
+
+
+
+
+
+
+
+

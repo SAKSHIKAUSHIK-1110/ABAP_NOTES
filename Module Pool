@@ -1,0 +1,89 @@
+&---------------------------------------------------------------------*
+*& Report ZMP_FACEBOOK
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmp_facebook.
+
+
+DATA : iwa_Zfacebook TYPE zfacebook,
+       lv_male       TYPE char1,
+       lv_fmale      TYPE char1,
+       lv_cus        TYPE char1.
+
+PARAMETERS : p_email TYPE zemail.
+PARAMETERS : p_pass TYPE zpassword.
+
+PARAMETERS : RB_login RADIOBUTTON GROUP rb1,
+             RB_Regis RADIOBUTTON GROUP rb1.
+
+START-OF-SELECTION.
+  IF RB_login = abap_true.
+
+    MESSAGE 'User Available' TYPE 'S'.
+  ENDIF.
+
+  IF RB_Regis = abap_true.
+
+    CALL SCREEN '0102'.
+  ENDIF.
+
+
+*Call screen '0102'.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0102 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0102 OUTPUT.
+  SET PF-STATUS 'ZPF_REGISTER'.
+  SET TITLEBAR 'REG'.
+
+*  SELECT SINGLE * FROM Zfacebook INTO iwa_Zfacebook
+*   WHERE email = p_email AND
+*         password = p_pass.
+
+*  IF sy-subrc = 0.
+*    MESSAGE 'User available' TYPE 'S'.
+*  ELSE.
+*    MESSAGE 'User not found! Please register.' TYPE 'E'.
+*  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0102  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0102 INPUT.
+  CASE sy-ucomm.
+    WHEN 'BACK' OR 'CANC' OR 'EXIT'.
+      LEAVE TO SCREEN 0.
+
+    WHEN 'SAVE'.
+      IF lv_male IS NOT INITIAL.
+        iwa_zfacebook-gender = 'M'.
+      ENDIF.
+      IF lv_fmale IS NOT INITIAL.
+        iwa_zfacebook-gender = 'F'.
+      ENDIF.
+      IF lv_cus IS NOT INITIAL.
+        iwa_zfacebook-gender = 'C'.
+      ENDIF.
+
+      IF iwa_zfacebook IS NOT INITIAL.
+        MODIFY Zfacebook FROM iwa_Zfacebook.
+        IF sy-subrc = 0.
+          COMMIT WORK.
+          MESSAGE 'User registered successfully!' TYPE 'S'.
+          LEAVE TO SCREEN 0.
+
+*        else.
+*          ROLLBACK WORK.
+        ENDIF.
+      ENDIF.
+
+
+  ENDCASE.
+
+ENDMODULE.

@@ -1,0 +1,55 @@
+&---------------------------------------------------------------------*
+*& Report ZMODPOOL_HOSPITAL
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmodpool_hospital.
+TABLES : zhospital.
+
+PARAMETERS : p_hosid TYPE zhospital-hospital_id OBLIGATORY.
+
+START-OF-SELECTION.
+  CALL SCREEN '9001'.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9001 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_9001 OUTPUT.
+  SET PF-STATUS 'ZPF_HOSP'.
+* SET TITLEBAR 'xxx'.
+
+  SELECT SINGLE * FROM zhospital INTO zhospital
+    WHERE hospital_id = p_hosid.
+  IF sy-subrc <> 0.
+    MESSAGE 'Data not found' TYPE 'E'.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_9001 INPUT.
+  CASE sy-ucomm.
+    WHEN 'BACK' OR 'CANC' OR 'EXIT'.
+      Leave TO SCREEN 0.
+    WHEN 'SAVE'.
+      Modify ZHOSPITAL FROM ZHOSPITAL.
+      IF sy-subrc = 0.
+        commit WORK.
+        MESSAGE 'Data Saved Successfully' TYPE 'I'.
+        leave TO SCREEN 0.
+        else.
+          ROLLBACK WORK.
+      ENDIF.
+    WHEN 'DEL'.
+      delete ZHOSPITAL FROM ZHOSPITAL.
+      IF sy-subrc = 0.
+        commit WORK.
+        MESSAGE 'Data Deleted Successfully' TYPE 'I'.
+        leave TO SCREEN 0.
+      ENDIF.
+    WHEN OTHERS.
+  ENDCASE.
+ENDMODULE.

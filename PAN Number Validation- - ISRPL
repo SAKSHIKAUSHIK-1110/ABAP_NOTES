@@ -1,0 +1,94 @@
+ENHANCEMENT 1  YTAX_VALIDATION.    "active version
+**BREAK mawai_abap.
+DATA : lv_tax       TYPE char20,
+       lv_tax1      TYPE string,
+       flag         TYPE char1,
+       result_tab   TYPE match_result_tab,
+       cnt          TYPE i,
+       lv_cnt       TYPE i,
+       lv_digit     TYPE char20,
+       lv_fdigit    TYPE char1,
+       lw_lifnr     TYPE lfa1,
+       lv_lifnr     TYPE lfa1,
+       lv_dup_lifnr TYPE lfa1-lifnr.
+
+data : lt_lifnr type STANDARD TABLE OF lfa1.
+
+SELECT SINGLE * FROM lfa1 INTO lw_lifnr
+ WHERE lifnr = df05a-ktnra
+ AND ktokk = 'ONET'
+ AND ven_class = ' '.
+
+IF lw_lifnr IS NOT INITIAL.
+
+if df05a-ktnra = '0000001002' .
+
+SELECT *
+  FROM lfa1
+  INTO TABLE lt_lifnr
+  WHERE j_1ipanno = bsec-stcd1.             "IS NOT INITIAL.
+
+IF sy-subrc = 0.
+  MESSAGE 'Duplicate PAN found. Please enter a unique PAN.' TYPE 'E'.
+ENDIF.
+
+  DATA: lv_pan      TYPE lfa1-j_1ipanno,
+        lv_stcd1    TYPE lfa1-stcd1,
+        lv_name     TYPE lfa1-name1,
+        lv_char4    TYPE c,
+        lv_char5    TYPE c,
+        lv_expected TYPE c,
+        lv_lastname TYPE string,
+        lt_words    TYPE STANDARD TABLE OF string.
+
+  lv_pan   = bsec-stcd1.
+  lv_name  = bsec-name1.
+
+  " PAN FORMAT
+
+  IF lv_pan IS NOT INITIAL .
+
+    IF strlen( lv_pan ) <> 10.
+      MESSAGE 'Invalid PAN format. Please enter valid PAN.' TYPE 'E'.
+    ENDIF.
+
+    IF lv_pan+0(3) CA '0123456789'.
+      MESSAGE 'Invalid PAN format. Please enter valid PAN.' TYPE 'E'.
+    ENDIF.
+
+    lv_char4 = lv_pan+3(1).
+    IF lv_char4 NA 'PCHFATBLJG'.
+      MESSAGE 'Invalid PAN format. Please enter valid PAN.' TYPE 'E'.
+    ENDIF.
+
+    IF lv_char4 = 'P'.
+      "Person → last name
+      SPLIT lv_name AT space INTO TABLE lt_words.
+      READ TABLE lt_words INTO lv_lastname INDEX lines( lt_words ).
+      lv_expected = lv_lastname+0(1).
+    ELSE.
+      "Entity → first letter
+      lv_expected = lv_name+0(1).
+    ENDIF.
+
+    lv_char5 = lv_pan+4(1).
+
+    TRANSLATE lv_expected TO UPPER CASE.
+    IF lv_char5 <> lv_expected.
+      MESSAGE 'Invalid PAN format. Please enter valid PAN.' TYPE 'E'.
+    ENDIF.
+
+    IF lv_char5 CA '0123456789'.
+      MESSAGE 'Invalid PAN format. Please enter valid PAN.' TYPE 'E'.
+    ENDIF.
+
+    IF lv_pan+5(4) NA '0123456789'.
+      MESSAGE 'Invalid PAN format. Please enter valid PAN.' TYPE 'E'.
+    ENDIF.
+
+    IF lv_pan+9(1) CA '0123456789'.
+      MESSAGE 'Invalid PAN format. Please enter valid PAN.' TYPE 'E'.
+    ENDIF.
+  ENDIF.
+
+endif.

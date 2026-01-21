@@ -1,0 +1,742 @@
+*&---------------------------------------------------------------------*
+*& Report ZFI_CUST_AGEING
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zfi_cust_ageing.
+
+TABLES: knvv.
+
+TYPES: BEGIN OF ty_final,
+         racct      TYPE racct,
+         vkorg      TYPE vbrk-vkorg,
+         kdgrp      TYPE knvv-kdgrp,
+         kunrg      TYPE vbrk-kunrg,
+         kunrg_name TYPE kna1-name1,
+         kunag      TYPE vbrk-kunag,
+         kunag_name TYPE kna1-name1,
+         kunwe      TYPE vbrk-kunwe,
+         kunwe_name TYPE kna1-name1,
+         bzirk      TYPE vbrk-bzirk,
+         bztxt      TYPE bztxt,
+         dmbtr0     TYPE netwr,
+         dmbtr1     TYPE netwr,
+         dmbtr2     TYPE netwr,
+         dmbtr3     TYPE netwr,
+         dmbtr4     TYPE netwr,
+         dmbtr5     TYPE netwr,
+         dmbtr6     TYPE netwr,
+         dmbtr7     TYPE netwr,
+         dmbtr8     TYPE netwr,
+         dmbtr9     TYPE netwr,
+         dmbtr10    TYPE netwr,
+         tot_dmbtr  TYPE netwr,
+         credit_bal TYPE netwr, "added AY 13.12.2019
+       END OF ty_final.
+
+DATA: it_final TYPE TABLE OF ty_final,
+      wa_final TYPE ty_final.
+
+RANGES: r_kunnr FOR kna1-kunnr.
+
+DATA : i_faede  TYPE   faede,
+       w_faede  TYPE faede,
+       e_faede  TYPE  faede,
+       wa_faede TYPE faede.
+
+
+DATA : lvcnt TYPE i,
+       text1 TYPE char20,
+       text2 TYPE char20,
+       text3 TYPE char20,
+       text4 TYPE char20,
+       text5 TYPE char20,
+       text6 TYPE char20,
+       text7 TYPE char20.
+
+SELECTION-SCREEN : BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+PARAMETERS : p_bukrs TYPE bsik-bukrs OBLIGATORY.
+SELECT-OPTIONS : s_kdgrp FOR knvv-kdgrp,
+                 s_vkorg FOR knvv-vkorg,
+                 s_vtweg FOR knvv-vtweg,
+                 s_spart FOR knvv-spart,
+                 s_kunnr FOR knvv-kunnr.
+
+PARAMETERS: p_ason TYPE datum OBLIGATORY DEFAULT sy-datum.
+PARAMETERS : p_splgl AS CHECKBOX .
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN : BEGIN OF LINE .
+SELECTION-SCREEN COMMENT 1(31) TEXT-002.
+PARAMETERS     : po TYPE char3 DEFAULT 0,
+                 p1 TYPE numc3 OBLIGATORY,
+                 p2 TYPE numc3,
+                 p3 TYPE numc3,
+                 p4 TYPE numc3,
+                 p5 TYPE numc3,
+                 p6 TYPE numc3.
+SELECTION-SCREEN : END OF LINE.
+SELECTION-SCREEN : END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+  IF p1 IS NOT INITIAL.
+    CONCATENATE '0-' p1 'Days' INTO text1.
+    IF p2 IS NOT INITIAL.
+      CONCATENATE p1 '-' p2 'Days' INTO text2.
+      IF p3 IS NOT INITIAL.
+        CONCATENATE p2 '-' p3 'Days' INTO text3.
+        IF p4 IS NOT INITIAL.
+          CONCATENATE p3 '-' p4 'Days' INTO text4.
+          IF p5 IS NOT INITIAL.
+            CONCATENATE p4 '-' p5 'Days' INTO text5.
+            IF p6 IS NOT INITIAL.
+              CONCATENATE p5 '-' p6 'Days' INTO text6.
+              CONCATENATE '>' p6 'Days' INTO text7.
+            ELSE.
+              CONCATENATE '>' p5 'Days' INTO text6.
+            ENDIF.
+          ELSE.
+            CONCATENATE '>' p4 'Days' INTO text5.
+          ENDIF.
+        ELSE.
+          CONCATENATE '>' p3 'Days' INTO text4.
+        ENDIF.
+      ELSE.
+        CONCATENATE '>' p2 'Days' INTO text3.
+      ENDIF.
+    ELSE.
+      CONCATENATE '>' p1 'Days' INTO text2.
+    ENDIF.
+  ENDIF.
+
+
+  SELECT   bukrs,
+           kunnr,
+           gjahr,
+           belnr,
+           shkzg,
+           zfbdt,
+           h_budat,
+           buzei,
+           zbd1t
+           "bldat
+          FROM bseg INTO TABLE @DATA(it_bseg)
+     WHERE kunnr IN @s_kunnr
+     AND bukrs = @p_bukrs
+     AND h_budat LE @sy-datum.
+
+
+
+  IF p_splgl IS INITIAL.
+
+    SELECT a~belnr, a~rbukrs, a~gjahr,
+           a~kunnr, a~bschl, a~koart,
+           a~ktosl, a~umskz, a~netdt,
+           a~bldat, a~blart, a~augbl,
+           a~augdt, a~hsl, a~wsl,
+    b~xblnr, a~budat, b~awkey, b~awtyp,
+    c~vbeln, c~fkart, c~vbtyp, c~kunag, c~kunwe, c~kunrg, c~bzirk, c~vkorg, c~vtweg, c~spart,
+    j~kdgrp,
+    d~name1 AS kunnr_name,
+    e~name1 AS kunag_name,
+    f~name1 AS kunwe_name,
+    g~name1 AS kunrg_name,
+    buzei, a~racct
+  FROM acdoca AS a
+    INNER JOIN bkpf AS b ON a~belnr = b~belnr AND a~rbukrs = b~bukrs AND a~gjahr = b~gjahr
+    LEFT OUTER JOIN vbrk AS c ON b~awkey = c~vbeln
+    LEFT OUTER JOIN knvv AS j ON c~kunag = j~kunnr AND c~vkorg = j~vkorg AND c~vtweg = j~vtweg AND c~spart = j~spart
+    LEFT OUTER JOIN kna1 AS d ON a~kunnr = d~kunnr
+    LEFT OUTER JOIN kna1 AS e ON c~kunag = e~kunnr
+    LEFT OUTER JOIN kna1 AS f ON c~kunwe = f~kunnr
+    LEFT OUTER JOIN kna1 AS g ON c~kunrg = g~kunnr
+    INTO TABLE @DATA(it_items)
+*    FOR ALL ENTRIES IN @it_knb1
+    WHERE "a~kunnr = @it_knb1-kunnr
+    a~rbukrs = @p_bukrs
+    AND a~rldnr = 'Z1'
+    AND a~koart = 'D'
+    AND a~umskz = ' '
+    AND a~budat LE @p_ason
+    AND ( a~augdt = '00000000' OR a~augdt GT @p_ason ).
+
+    "AND c~kunrg IN @s_kunnr  .
+
+  ELSE.
+
+    SELECT a~belnr, a~rbukrs, a~gjahr, a~kunnr, a~bschl, a~koart, a~ktosl, a~umskz, a~netdt, a~bldat, a~blart, a~augbl, a~augdt, a~hsl, a~wsl,
+    b~xblnr, a~budat, b~awkey, b~awtyp,
+    c~vbeln, c~fkart, c~vbtyp, c~kunag, c~kunwe, c~kunrg, c~bzirk, c~vkorg, c~vtweg, c~spart,
+    j~kdgrp,
+    d~name1 AS kunnr_name,
+    e~name1 AS kunag_name,
+    f~name1 AS kunwe_name,
+    g~name1 AS kunrg_name,
+      a~buzei, a~racct
+  FROM acdoca AS a
+    INNER JOIN bkpf AS b ON a~belnr = b~belnr AND a~rbukrs = b~bukrs AND a~gjahr = b~gjahr
+    LEFT OUTER JOIN vbrk AS c ON b~awkey = c~vbeln
+    LEFT OUTER JOIN knvv AS j ON c~kunag = j~kunnr AND c~vkorg = j~vkorg AND c~vtweg = j~vtweg AND c~spart = j~spart
+    LEFT OUTER JOIN kna1 AS d ON a~kunnr = d~kunnr
+    LEFT OUTER JOIN kna1 AS e ON c~kunag = e~kunnr
+    LEFT OUTER JOIN kna1 AS f ON c~kunwe = f~kunnr
+    LEFT OUTER JOIN kna1 AS g ON c~kunrg = g~kunnr
+    INTO TABLE @it_items
+    "FOR ALL ENTRIES IN @it_knb1
+    WHERE "a~kunnr = @it_knb1-kunnr
+    a~rbukrs = @p_bukrs
+    AND a~rldnr = 'Z1'
+    AND a~koart = 'D'
+*    AND a~umskz <> ' '
+    AND a~budat LE @p_ason
+    AND ( a~augdt = '00000000' OR a~augdt GT @p_ason ).
+    "AND c~kunrg IN @s_kunnr  .
+
+  ENDIF.
+
+  DELETE it_items WHERE augdt LE p_ason AND augdt IS NOT INITIAL.
+
+  "Point A
+  IF s_kdgrp IS NOT INITIAL OR s_vkorg IS NOT INITIAL
+    OR s_vtweg IS NOT INITIAL   OR s_spart IS NOT INITIAL.
+    SELECT kunnr FROM knvv INTO TABLE @DATA(it_knvv)
+      WHERE kdgrp IN @s_kdgrp
+      AND kunnr IN @s_kunnr
+      AND vkorg IN @s_vkorg
+      AND vtweg IN @s_vtweg
+      AND spart IN @s_spart.
+
+    "Point B
+    IF it_knvv IS NOT INITIAL.
+      SELECT kunnr, bukrs FROM knb1 INTO TABLE @DATA(it_knb1)
+        FOR ALL ENTRIES IN @it_knvv
+        WHERE bukrs = @p_bukrs AND
+        kunnr = @it_knvv-kunnr.
+    ENDIF.
+  ENDIF.
+  IF it_knb1 IS NOT INITIAL.
+    LOOP AT it_knb1 INTO DATA(wa_knb1).
+      r_kunnr-sign = 'I'.
+      r_kunnr-option = 'EQ'.
+      r_kunnr-low = wa_knb1-kunnr.
+      APPEND r_kunnr.
+    ENDLOOP.
+    IF r_kunnr IS NOT INITIAL.
+      DELETE it_items WHERE kunrg NOT IN r_kunnr.
+    ENDIF.
+  ENDIF.
+
+  "POINT F
+  SELECT SINGLE a~adrnr, b~name1
+    FROM t001 AS a
+    INNER JOIN adrc AS b ON a~adrnr = b~addrnumber
+    INTO @DATA(wa_adrc)
+    WHERE a~bukrs = @p_bukrs.
+***Fetch ship to code
+  IF it_items IS NOT INITIAL.
+    SELECT * INTO TABLE @DATA(it_vbpa) FROM vbpa
+      FOR ALL ENTRIES IN @it_items
+      WHERE vbeln = @it_items-vbeln
+      AND parvw = 'WE'.
+    IF sy-subrc EQ 0.
+      SELECT kunnr, name1 FROM kna1 INTO TABLE @DATA(it_kna1)
+        FOR ALL ENTRIES IN @it_vbpa
+        WHERE kunnr = @it_vbpa-kunnr.
+    ENDIF.
+    SELECT bzirk, bztxt INTO TABLE @DATA(it_t171t) FROM t171t
+      FOR ALL ENTRIES IN @it_items
+      WHERE spras = @sy-langu AND bzirk = @it_items-bzirk.
+  ENDIF.
+  CLEAR wa_final.
+
+  LOOP AT it_items INTO DATA(wa_items).
+    wa_final-racct = wa_items-racct.
+    wa_final-vkorg = wa_items-vkorg.
+    wa_final-kdgrp = wa_items-kdgrp.
+
+    wa_final-kunrg = wa_items-kunrg.
+    wa_final-kunrg_name = wa_items-kunrg_name.
+    IF wa_final-kunrg IS INITIAL.
+      wa_final-kunrg = wa_items-kunnr.
+      wa_final-kunrg_name = wa_items-kunnr_name.
+    ENDIF.
+    wa_final-kunag = wa_items-kunag.
+    wa_final-kunag_name = wa_items-kunag_name.
+*    wa_final-kunwe = wa_items-kunwe.
+*    wa_final-kunwe_name = wa_items-kunwe_name.
+    wa_final-bzirk = wa_items-bzirk.
+    READ TABLE it_t171t INTO DATA(wa_t171t) WITH KEY bzirk = wa_final-bzirk.
+    IF sy-subrc EQ 0.
+      wa_final-bztxt = wa_t171t-bztxt.
+    ENDIF.
+    READ TABLE it_vbpa INTO DATA(wa_vbpa) WITH KEY vbeln = wa_items-vbeln.
+    IF sy-subrc EQ 0.
+      wa_final-kunwe = wa_vbpa-kunnr.
+      READ TABLE it_kna1 INTO DATA(wa_kna1) WITH KEY kunnr = wa_final-kunwe.
+      IF sy-subrc EQ 0.
+        wa_final-kunwe_name = wa_kna1-name1.
+      ENDIF.
+    ENDIF.
+    CLEAR: wa_vbpa, wa_kna1, wa_t171t.
+    CLEAR lvcnt.
+
+
+    READ TABLE it_bseg INTO DATA(wa_bseg) WITH KEY belnr = wa_items-belnr
+                                                   gjahr = wa_items-gjahr
+                                                   kunnr = wa_items-kunnr
+                                                   bukrs = wa_items-rbukrs
+                                                   buzei = wa_items-buzei.
+    IF sy-subrc = 0.
+      CLEAR : w_faede , i_faede , e_faede.
+
+      i_faede-shkzg = wa_bseg-shkzg.
+      i_faede-koart = 'D'.
+      i_faede-zfbdt = wa_bseg-zfbdt.
+      i_faede-zbd1t = wa_bseg-zbd1t.
+
+      CALL FUNCTION 'DETERMINE_DUE_DATE'
+        EXPORTING
+          i_faede                    = i_faede
+*         I_GL_FAEDE                 =
+        IMPORTING
+          e_faede                    = e_faede
+        EXCEPTIONS
+          account_type_not_supported = 1
+          OTHERS                     = 2.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+
+*      lvcnt = e_faede-netdt.
+    ENDIF.
+
+    lvcnt = p_ason - e_faede-netdt.
+
+
+    CLEAR wa_bseg.
+
+
+    IF lvcnt BETWEEN 0 AND p1.
+      wa_final-dmbtr1 = wa_final-dmbtr1 + wa_items-hsl.
+    ENDIF.
+    IF lvcnt LT 0.
+      wa_final-dmbtr0 = wa_final-dmbtr0 + wa_items-hsl.
+    ENDIF.
+    IF p2 IS NOT INITIAL.
+      p1 = p1 + 1 .
+      IF lvcnt BETWEEN p1 AND p2.
+        wa_final-dmbtr2 = wa_final-dmbtr2 + wa_items-hsl.
+      ENDIF.
+      p1 = p1 - 1.
+      IF p3 IS NOT INITIAL.
+        p2 = p2 + 1.
+        IF lvcnt BETWEEN p2 AND p3.
+          wa_final-dmbtr3 = wa_final-dmbtr3 + wa_items-hsl.
+        ENDIF.
+        p2 = p2 - 1.
+        IF p4 IS NOT INITIAL.
+          p3 = p3 + 1.
+          IF lvcnt BETWEEN p3 AND p4.
+            wa_final-dmbtr4 = wa_final-dmbtr4 + wa_items-hsl.
+          ENDIF.
+          p3 = p3 - 1.
+          IF p5 IS NOT INITIAL.
+            p4 = p4 + 1.
+            IF lvcnt BETWEEN p4 AND p5.
+              wa_final-dmbtr5 = wa_final-dmbtr5 + wa_items-hsl.
+            ENDIF.
+            p4 = p4 - 1.
+            IF p6 IS NOT INITIAL.
+              p5 = p5 + 1.
+              IF lvcnt BETWEEN p5 AND p6.
+                wa_final-dmbtr6 = wa_final-dmbtr6 + wa_items-hsl.
+              ENDIF.
+              p5 = p5 - 1.
+              IF lvcnt > p6.
+                wa_final-dmbtr7 = wa_final-dmbtr7 + wa_items-hsl.
+              ENDIF.
+            ELSE.
+              IF lvcnt > p5.
+                wa_final-dmbtr6 = wa_final-dmbtr6 + wa_items-hsl.
+              ENDIF.
+            ENDIF.
+          ELSE.
+            IF lvcnt > p4.
+              wa_final-dmbtr5 = wa_final-dmbtr5 + wa_items-hsl.
+            ENDIF.
+          ENDIF.
+        ELSE.
+          IF lvcnt > p3.
+            wa_final-dmbtr4 = wa_final-dmbtr4 + wa_items-hsl.
+          ENDIF.
+        ENDIF.
+      ELSE.
+        IF lvcnt > p2.
+          wa_final-dmbtr3 = wa_final-dmbtr3 + wa_items-hsl.
+        ENDIF.
+      ENDIF.
+    ELSE.
+      IF lvcnt > p1.
+        wa_final-dmbtr2 = wa_final-dmbtr2 + wa_items-hsl.
+      ENDIF.
+    ENDIF.
+
+    wa_final-tot_dmbtr = wa_final-dmbtr0 + wa_final-dmbtr1 + wa_final-dmbtr2 + wa_final-dmbtr3 +
+                                 wa_final-dmbtr4 + wa_final-dmbtr5 + wa_final-dmbtr6 +
+                                 wa_final-dmbtr7.
+
+
+    IF wa_items-hsl < 0.
+*      WA_FINAL-TOT_DMBTR = WA_FINAL-CREDIT_BAL.
+      wa_final-credit_bal = wa_items-hsl.
+    ENDIF.
+
+*    IF wa_final-tot_dmbtr < 0.
+*      CLEAR wa_final-tot_dmbtr.
+*    ENDIF.
+
+
+    IF wa_final-dmbtr0 < 0.
+      CLEAR wa_final-dmbtr0.
+    ENDIF.
+
+    IF wa_final-dmbtr1 < 0.
+      CLEAR wa_final-dmbtr1.
+    ENDIF.
+
+    IF wa_final-dmbtr2 < 0.
+      CLEAR wa_final-dmbtr2.
+    ENDIF.
+
+    IF wa_final-dmbtr3 < 0.
+      CLEAR wa_final-dmbtr3.
+    ENDIF.
+
+    IF wa_final-dmbtr4 < 0.
+      CLEAR wa_final-dmbtr4.
+    ENDIF.
+
+    IF wa_final-dmbtr5 < 0.
+      CLEAR wa_final-dmbtr5.
+    ENDIF.
+
+    IF wa_final-dmbtr6 < 0.
+      CLEAR wa_final-dmbtr6.
+    ENDIF.
+
+    IF wa_final-dmbtr7 < 0.
+      CLEAR wa_final-dmbtr7.
+    ENDIF.
+
+
+
+
+
+
+
+
+*    APPEND wa_final TO it_final.
+    COLLECT wa_final INTO it_final.
+    CLEAR wa_final.
+
+  ENDLOOP.
+
+
+  DELETE it_final WHERE kunrg NOT IN s_kunnr.
+
+
+  DATA lt_zterm TYPE RANGE OF saknr.
+  READ TABLE lt_zterm INTO DATA(ls_zterm) INDEX 1.
+
+  "removing some recon accounts AY 07.11.2019
+  SELECT * FROM setleaf
+    INTO TABLE @DATA(lt_set2)
+    WHERE setname = 'ZCUST_AGE_GLNR'.
+
+  IF sy-subrc = 0.
+    LOOP AT lt_set2 INTO DATA(ls_set2).
+      ls_zterm-sign = 'I'.
+      ls_zterm-option = 'EQ'.
+      ls_zterm-low = ls_set2-valfrom.
+      APPEND ls_zterm TO lt_zterm.
+      CLEAR ls_zterm.
+    ENDLOOP.
+
+
+
+    DELETE it_final WHERE racct IN lt_zterm.
+  ENDIF.
+  """"""""""""""""""""""""""""""""""""""
+
+  DATA gs_layout TYPE slis_layout_alv.
+  DATA gt_fcat TYPE slis_t_fieldcat_alv.
+  DATA gs_fcat TYPE LINE OF slis_t_fieldcat_alv.
+
+
+  DATA col TYPE i.
+
+  gs_layout-colwidth_optimize = 'X'.
+
+  gs_fcat-fieldname = 'RACCT'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Recon GL'.
+  gs_fcat-seltext_m = 'Recon GL'.
+  gs_fcat-seltext_l = 'Recon GL'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'VKORG'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Sales Organisation'.
+  gs_fcat-seltext_m = 'Sales Organisation'.
+  gs_fcat-seltext_l = 'Sales Organisation'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'KDGRP'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Customer Group'.
+  gs_fcat-seltext_m = 'Customer Group'.
+  gs_fcat-seltext_l = 'Customer Group'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'KUNRG'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Payer Code'.
+  gs_fcat-seltext_m = 'Payer Code'.
+  gs_fcat-seltext_l = 'Payer Code'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'KUNRG_NAME'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Payer Name'.
+  gs_fcat-seltext_m = 'Payer Name'.
+  gs_fcat-seltext_l = 'Payer Name'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'KUNAG'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Sold to Code'.
+  gs_fcat-seltext_m = 'Sold to Code'.
+  gs_fcat-seltext_l = 'Sold to Code'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'KUNAG_NAME'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Sold to Code Name'.
+  gs_fcat-seltext_m = 'Sold to Code Name'.
+  gs_fcat-seltext_l = 'Sold to Code Name'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'KUNWE'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Ship to Code'.
+  gs_fcat-seltext_m = 'Ship to Code'.
+  gs_fcat-seltext_l = 'Ship to Code'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'KUNWE_NAME'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Ship to Code Name'.
+  gs_fcat-seltext_m = 'Ship to Code Name'.
+  gs_fcat-seltext_l = 'Ship to Code Name'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'BZIRK'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Sales District'.
+  gs_fcat-seltext_m = 'Sales District'.
+  gs_fcat-seltext_l = 'Sales District'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'BZTXT'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Sales Dist. Name'.
+  gs_fcat-seltext_m = 'Sales Dist. Name'.
+  gs_fcat-seltext_l = 'Sales Dist. Name'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'TOT_DMBTR'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Balance AS ON'.
+  gs_fcat-seltext_m = 'Balance AS ON'.
+  gs_fcat-seltext_l = 'Balance AS ON'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR0'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Current'.
+  gs_fcat-seltext_m = 'Current'.
+  gs_fcat-seltext_l = 'Current'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR1'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = text1.
+  gs_fcat-seltext_m = text1.
+  gs_fcat-seltext_l = text1.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR2'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = text2.
+  gs_fcat-seltext_m = text2.
+  gs_fcat-seltext_l = text2.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR3'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = text3.
+  gs_fcat-seltext_m = text3.
+  gs_fcat-seltext_l = text3.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR4'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = text4.
+  gs_fcat-seltext_m = text4.
+  gs_fcat-seltext_l = text4.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR5'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = text5.
+  gs_fcat-seltext_m = text5.
+  gs_fcat-seltext_l = text5.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR6'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = text6.
+  gs_fcat-seltext_m = text6.
+  gs_fcat-seltext_l = text6.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_fcat-fieldname = 'DMBTR7'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = text7.
+  gs_fcat-seltext_m = text7.
+  gs_fcat-seltext_l = text7.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+
+  gs_fcat-fieldname = 'CREDIT_BAL'.
+  gs_fcat-col_pos = col + 1.
+  gs_fcat-seltext_s = 'Credit Balance'.
+  gs_fcat-seltext_m = 'Credit Balance'.
+  gs_fcat-seltext_l = 'Credit Balance'.
+  gs_fcat-tabname = 'it_final'.
+  col = col + 1.
+  APPEND gs_fcat TO gt_fcat.
+  CLEAR gs_fcat.
+
+  gs_layout-zebra = 'X'.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK  = ' '
+*     I_BYPASSING_BUFFER = ' '
+*     I_BUFFER_ACTIVE    = ' '
+      i_callback_program = sy-repid
+*     I_CALLBACK_PF_STATUS_SET          = ' '
+*     I_CALLBACK_USER_COMMAND           = ' '
+*     I_CALLBACK_TOP_OF_PAGE            = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME   =
+*     I_BACKGROUND_ID    = ' '
+*     I_GRID_TITLE       =
+*     I_GRID_SETTINGS    =
+      is_layout          = gs_layout
+      it_fieldcat        = gt_fcat
+*     IT_EXCLUDING       =
+*     IT_SPECIAL_GROUPS  =
+*     IT_SORT            =
+*     IT_FILTER          =
+*     IS_SEL_HIDE        =
+      i_default          = 'X'
+      i_save             = 'X'
+*     IS_VARIANT         =
+*     IT_EVENTS          =
+*     IT_EVENT_EXIT      =
+*     IS_PRINT           =
+*     IS_REPREP_ID       =
+*     I_SCREEN_START_COLUMN             = 0
+*     I_SCREEN_START_LINE               = 0
+*     I_SCREEN_END_COLUMN               = 0
+*     I_SCREEN_END_LINE  = 0
+*     I_HTML_HEIGHT_TOP  = 0
+*     I_HTML_HEIGHT_END  = 0
+*     IT_ALV_GRAPHICS    =
+*     IT_HYPERLINK       =
+*     IT_ADD_FIELDCAT    =
+*     IT_EXCEPT_QINFO    =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER           =
+*     ES_EXIT_CAUSED_BY_USER            =
+    TABLES
+      t_outtab           = it_final
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.

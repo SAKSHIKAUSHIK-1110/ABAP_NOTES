@@ -1,0 +1,22 @@
+Step 1 - Find screen no. – 1102
+Step 2
+  MODULE xlips_aufsetzen.
+  MODULE xlips_aufsetzen OUTPUT.
+
+  PERFORM xlips_aufsetzen(sapfv50p).
+
+  ENDMODULE.    
+Step 3 – Create Implicit Enhacement  
+Step 4 – LOGIC.
+IF SY-TCODE = 'VL02N'.
+ loop at screen.
+    if screen-name = 'LIKP-WADAT'
+      OR screen-name = 'LIKP-WADAT_IST'
+      OR screen-name = 'LIKP-KODAT'
+      OR screen-name = 'LIKP-LDDAT'
+      OR screen-name = 'LIKP-TDDAT' .
+      screen-input = '0'.
+      modify screen.
+    endif.
+  endloop.
+ ENDIF.

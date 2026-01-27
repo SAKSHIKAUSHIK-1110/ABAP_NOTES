@@ -1,0 +1,317 @@
+*&---------------------------------------------------------------------*
+*& Report  ZTDS_DETAIL_REPORT
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+REPORT ztds_detail_report.
+
+TABLES: bkpf, bseg, lfa1, with_item, zta_tds_details,t059z.
+
+SELECT-OPTIONS: s_bukrs FOR bkpf-bukrs OBLIGATORY,
+                s_gjahr FOR bkpf-gjahr OBLIGATORY,
+                s_lifnr FOR lfa1-lifnr,
+                s_belnr FOR bkpf-belnr,
+                s_budat FOR bkpf-budat,
+                s_qscod FOR t059z-qscod. "TDS section/code
+
+TYPES: BEGIN OF ty_output,
+         bukrs       TYPE bukrs,
+         gjahr       TYPE gjahr,
+         belnr       TYPE belnr_d,
+         name1       TYPE lfa1-name1,
+         budat       TYPE budat,
+         bldat       TYPE bldat,
+         hkont       TYPE hkont,
+         gl_text     TYPE skat-txt20,
+         wt_base_amt TYPE with_item-wt_qsshb,
+         wt_tax_amt  TYPE with_item-wt_qbshb,
+         tds_gl      TYPE hkont,
+         wt_acco     TYPE with_item-wt_acco,
+         witht       TYPE with_item-witht,
+         wt_withcd   TYPE with_item-wt_withcd,
+         section     TYPE t059z-qscod,
+         tds_rate    TYPE t059z-qsatz,
+         bupla       TYPE bset-bupla,
+         reason      TYPE string, "Editable
+         dmbtr       type dmbtr ,"added by SK
+       END OF ty_output.
+
+DATA: gt_output TYPE STANDARD TABLE OF ty_output,
+      gs_output TYPE ty_output.
+
+DATA: ls_layout TYPE lvc_s_layo.
+DATA: gt_fcat TYPE lvc_t_fcat,
+      gs_fcat TYPE lvc_s_fcat.
+
+DATA: lo_container TYPE REF TO cl_gui_custom_container,
+      lo_grid      TYPE REF TO cl_gui_alv_grid.
+
+START-OF-SELECTION.
+
+  PERFORM get_data.
+  PERFORM build_fcat.
+  CALL SCREEN 100.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data .
+
+  SELECT bukrs, belnr, gjahr, budat, bldat
+  FROM bkpf
+  INTO TABLE @DATA(lt_bkpf)
+          WHERE bukrs IN @s_bukrs
+          AND gjahr IN @s_gjahr
+          AND tcode = 'FB60' .
+
+  IF lt_bkpf[] IS NOT INITIAL.
+
+    SELECT bukrs, belnr, gjahr, hkont, lifnr ,dmbtr, buzei , koart
+     FROM bseg
+     INTO TABLE @DATA(lt_bseg)
+      FOR ALL ENTRIES IN @lt_bkpf
+      WHERE bukrs = @lt_bkpf-bukrs
+      AND belnr = @lt_bkpf-belnr
+      AND gjahr = @lt_bkpf-gjahr
+      AND koart = 'S'
+      AND gvtyp = 'X1'.
+
+    SELECT bukrs, belnr, gjahr, hkont, lifnr ,dmbtr, buzei , koart
+     FROM bseg
+     INTO TABLE @DATA(lt_bseg2)
+      FOR ALL ENTRIES IN @lt_bkpf
+      WHERE bukrs = @lt_bkpf-bukrs
+      AND belnr = @lt_bkpf-belnr
+      AND gjahr = @lt_bkpf-gjahr
+      AND koart = 'K'.
+*      AND gvtyp = 'X1'.
+
+  ENDIF.
+
+  SORT lt_bkpf BY belnr gjahr bukrs.
+  DELETE ADJACENT DUPLICATES FROM lt_bkpf COMPARING belnr gjahr bukrs.
+
+  LOOP AT lt_bkpf INTO DATA(ls_bkpf).
+
+    gs_output-bukrs = ls_bkpf-bukrs.
+    gs_output-belnr = ls_bkpf-belnr.
+    gs_output-budat = ls_bkpf-budat.
+    gs_output-bldat = ls_bkpf-bldat.
+
+*    gs_output-wt_acco = ls_bkpf-lifnr.
+
+
+    READ TABLE lt_bseg INTO DATA(ls_bseg) "GL ACCOUNT
+      WITH KEY bukrs = ls_bkpf-bukrs
+               belnr = ls_bkpf-belnr
+               gjahr = ls_bkpf-gjahr
+               koart = 'S'.
+    IF sy-subrc = 0.
+      gs_output-hkont = ls_bseg-hkont.
+
+  gs_output-dmbtr = REDUCE #( INIT LV_VAL TYPE dmbtr
+                   FOR <fs> IN lt_bseg
+                   WHERE ( bukrs = ls_bkpf-bukrs and
+                           belnr = ls_bkpf-belnr and
+                           gjahr = ls_bkpf-gjahr and
+                           koart = 'S' )
+                   NEXT lv_val = lv_val + <fs>-dmbtr ).
+
+*      gs_output-wt_acco = ls_bseg-lifnr.
+    ENDIF.
+
+
+   READ TABLE lt_bseg2 INTO DATA(ls_bseg2) "LIFNR
+      WITH KEY bukrs = ls_bkpf-bukrs
+               belnr = ls_bkpf-belnr
+               gjahr = ls_bkpf-gjahr
+               koart = 'K'.
+    IF sy-subrc = 0.
+      gs_output-wt_acco = ls_bseg2-lifnr.
+    ENDIF.
+
+
+
+    SELECT SINGLE name1
+      FROM lfa1
+      INTO @gs_output-name1
+      WHERE lifnr = @gs_output-wt_acco.
+
+    SELECT SINGLE bupla
+      INTO gs_output-bupla
+      FROM bset
+      WHERE bukrs = ls_bseg-bukrs
+        AND belnr = ls_bseg-belnr
+        AND gjahr = ls_bseg-gjahr.
+
+    SELECT SINGLE txt20
+           FROM skat
+           INTO @gs_output-gl_text
+           WHERE saknr = @ls_bseg-hkont.
+
+    SELECT SINGLE bukrs, belnr, gjahr, SUM( wt_qbshb ) AS wt_tax_amt, SUM( wt_qsshb ) AS wt_base_amt,
+    witht, wt_withcd, hkont, wt_acco
+    FROM with_item
+    INTO  @DATA(ls_with)
+          WHERE bukrs = @ls_bkpf-bukrs
+            AND belnr = @ls_bkpf-belnr
+            AND gjahr = @ls_bkpf-gjahr
+      GROUP BY bukrs, belnr, gjahr, witht, wt_withcd, hkont, wt_acco.
+
+    IF sy-subrc = 0.
+      gs_output-wt_base_amt = ls_with-wt_base_amt. "wt_qsshb.
+      gs_output-wt_tax_amt  = ls_with-wt_tax_amt.  "wt_qbshb.
+      gs_output-tds_gl      = ls_with-hkont.
+      gs_output-wt_withcd   = ls_with-wt_withcd.
+      gs_output-witht       = ls_with-witht.
+      SELECT SINGLE qscod SUM( qsatz ) FROM t059z
+             INTO (gs_output-section, gs_output-tds_rate)
+            WHERE land1      = 'IN'
+              AND witht      = ls_with-witht
+              AND wt_withcd  = ls_with-wt_withcd
+              AND qscod      = s_qscod GROUP BY qscod.
+    ENDIF.
+    "Move to final output structure
+    APPEND gs_output TO gt_output.
+    CLEAR gs_output.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_FCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM build_fcat .
+
+  DEFINE add_fcat.
+    clear gs_fcat.
+    gs_fcat-fieldname = &1.
+    gs_fcat-coltext   = &2.
+    gs_fcat-edit      = &3.
+    gs_fcat-datatype  = &4.
+    gs_fcat-decimals  = &5.
+    gs_fcat-ref_field = &6.
+
+    append gs_fcat to gt_fcat.
+  END-OF-DEFINITION.
+
+  add_fcat 'BUKRS'        'Company Code'         ''    ''       ''    ''.
+  add_fcat 'WT_ACCO'      'Vendor Code'          ''    ''       ''    ''.
+  add_fcat 'NAME1'        'Vendor Name'          ''    ''       ''    ''.
+  add_fcat 'BELNR'        'Doc Number'           ''    ''       ''    ''.
+  add_fcat 'BUDAT'        'Posting Date'         ''    ''       ''    ''.
+  add_fcat 'BLDAT'        'Doc Date'             ''    ''       ''    ''.
+  add_fcat 'HKONT'        'G/L Acc'              ''    ''       ''    ''.
+  add_fcat 'GL_TEXT'      'G/L Text'             ''    ''       ''    ''.
+  add_fcat 'WT_BASE_AMT'  'With. Tax Base Amt'   ''    'CURR'   '2'   'WAERS'.
+  add_fcat 'WT_TAX_AMT'   'With. Tax Amt'        ''    'CURR'   '2'   'WAERS'.
+  add_fcat 'TDS_GL'       'TDS GL Code'          ''    ''       ''    ''.
+  add_fcat 'WITHT'        'With. Tax Type'       ''    ''       ''    ''.
+  add_fcat 'WT_WITHCD'    'With. Tax Code'       ''    ''       ''    ''.
+  add_fcat 'SECTION'      'Section'              ''    ''       ''    ''.
+  add_fcat 'TDS_RATE'     'TDS Rate'             ''    ''       ''    ''.
+  add_fcat 'BUPLA'        'Buss. Place'          ''    ''       ''    ''.
+  add_fcat 'DMBTR'       'Expense Base Amount'   'X'   ''       ''    ''.
+  add_fcat 'REASON'       'Reason'               'X'   ''       ''    ''.
+
+
+ENDFORM.
+
+MODULE status_0100 OUTPUT.
+  SET PF-STATUS 'ZALV'.
+  SET TITLEBAR 'TDS Detail Report'.
+
+  IF lo_container IS INITIAL.
+    CREATE OBJECT lo_container
+      EXPORTING
+        container_name = 'CC_ALV'.
+
+    CREATE OBJECT lo_grid
+      EXPORTING
+        i_parent = lo_container.
+
+    ls_layout-sel_mode = 'A'.   "A = multiple row selection
+
+    lo_grid->set_table_for_first_display(
+    EXPORTING
+      is_layout       = ls_layout
+    CHANGING
+      it_outtab       =  gt_output
+      it_fieldcatalog = gt_fcat ).
+  ENDIF.
+ENDMODULE.
+
+MODULE user_command_0100 INPUT.
+  CASE sy-ucomm.
+    WHEN 'SAVE'.
+      PERFORM save_data.
+    WHEN 'BACK'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+ENDMODULE.
+
+FORM save_data.
+
+  DATA: lt_rows TYPE lvc_t_row,
+        ls_row  TYPE lvc_s_row,
+        ls_save TYPE zta_tds_details.
+
+  "Get latest changes from ALV
+  lo_grid->check_changed_data( ).
+
+  "Get selected rows
+  lo_grid->get_selected_rows(
+  IMPORTING
+    et_index_rows = lt_rows ).
+
+  IF lt_rows IS INITIAL.
+    MESSAGE 'Please select at least one line to save' TYPE 'I'.
+    RETURN.
+  ENDIF.
+
+  LOOP AT lt_rows INTO ls_row.
+
+    READ TABLE gt_output INTO gs_output INDEX ls_row-index.
+    IF sy-subrc <> 0.
+      CONTINUE.
+    ENDIF.
+
+    CLEAR ls_save.
+    ls_save-mandt        = sy-mandt.
+    ls_save-bukrs        = gs_output-bukrs.
+    ls_save-gjahr        = gs_output-gjahr.
+    ls_save-belnr        = gs_output-belnr.
+    ls_save-name1        = gs_output-name1.
+    ls_save-budat        = gs_output-budat.
+    ls_save-bldat        = gs_output-bldat.
+    ls_save-hkont        = gs_output-hkont.
+    ls_save-gl_text      = gs_output-gl_text.
+    ls_save-wt_base_amt  = gs_output-wt_base_amt.
+    ls_save-wt_tax_amt   = gs_output-wt_tax_amt.
+    ls_save-tds_gl       = gs_output-tds_gl.
+    ls_save-wt_acco      = gs_output-wt_acco.
+    ls_save-witht        = gs_output-witht.
+    ls_save-wt_withcd    = gs_output-wt_withcd.
+    ls_save-zsection     = gs_output-section.
+    ls_save-tds_rate     = gs_output-tds_rate.
+    ls_save-bupla        = gs_output-bupla.
+    ls_save-reason       = gs_output-reason.
+    ls_save-created_by   = sy-uname.
+    ls_save-created_time = sy-uzeit.
+    ls_save-created_date = sy-datum.
+
+    MODIFY zta_tds_details FROM ls_save.
+  ENDLOOP.
+
+  COMMIT WORK.
+  MESSAGE 'Selected line(s) saved successfully' TYPE 'S'.
+ENDFORM.

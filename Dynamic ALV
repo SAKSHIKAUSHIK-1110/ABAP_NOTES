@@ -1,0 +1,860 @@
+*&---------------------------------------------------------------------*
+*& Report  ZMM_VENDOR_PART_CODE_REPORT
+*&---------------------------------------------------------------------*
+*&   DEVELOPER - SUMIT
+*&   CONTACT IN CASE OF ANY ISSUE - +91 7042355017
+*&---------------------------------------------------------------------*
+REPORT zmm_vendor_part_code_report.
+
+TABLES : makt , mard , mvke,zven_stock1,msku.
+
+
+TYPE-POOLS : slis.
+
+DATA: d_ref        TYPE REF TO data,
+      d_ref2       TYPE REF TO data,
+      d_ref3       TYPE REF TO data,
+      i_alv_cat    TYPE TABLE OF lvc_s_fcat,
+      ls_alv_cat   LIKE LINE OF i_alv_cat,
+      excel_strng  TYPE string, " for excel
+      excel_strng2 TYPE string, " for excel
+      excel_strng3 TYPE string, " for excel
+      "FOR SPACE AND END AFETR FIELD IN EXCEL
+      gc_tab       TYPE c     VALUE cl_bcs_convert=>gc_tab,
+      gc_crlf      TYPE c     VALUE cl_bcs_convert=>gc_crlf.
+
+*data : i_werks like t001w occurs 0 with header line.
+DATA : i_werks LIKE zven_stock1 OCCURS 0 WITH HEADER LINE. ""
+TYPES : BEGIN OF ty,
+          werks TYPE werks_d,
+          lgort TYPE lgort,
+          name1 TYPE name1,
+        END OF ty.
+*        data: it_werks TYPE STANDARD TABLE OF ty,
+*              i_werks TYPE  ty.
+
+DATA: fieldcat          TYPE lvc_t_fcat WITH HEADER LINE,
+      infty_tab_pointer TYPE REF TO data.
+
+FIELD-SYMBOLS : <f_fs>   TYPE table,
+                <f_fs_m> TYPE table,
+                <f_fs12> TYPE table,
+                <f_fs1>  TYPE table,
+                <f_fs2>  TYPE any,
+                <f_fs3>  TYPE table,
+                <f_fs4>  TYPE any.
+
+DATA : v_lines LIKE sy-tabix.
+DATA : fname     TYPE rs38l_fnam,
+       control   TYPE ssfctrlop,
+       ls_output TYPE ssfcompop,
+       lv_form   TYPE tdsfname.
+
+DATA : lv_variant TYPE syst_slset.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS :  s_mvgr2 FOR mvke-mvgr2, " NO-EXTENSION NO INTERVALS OBLIGATORY.
+                  s_matnr FOR mvke-matnr  .
+SELECTION-SCREEN END OF BLOCK b1.
+PARAMETERS : mail AS CHECKBOX  .
+*             mail2 as checkbox  .
+
+PERFORM get_data.
+PERFORM display.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data .
+
+  SELECT * FROM zven_stock1
+  INTO TABLE i_werks WHERE werks NOT IN ( '0001' ,  'T210' , 'T900' ) . .
+
+  PERFORM fcat USING 'MATNR'      'Material' '20'.
+  PERFORM fcat USING 'VENDOR_PART_CODE'      'Vendor Part Code' '20'.
+  PERFORM fcat USING 'PART_CODE_DESC'        'Part Code Desc' '40'.
+  PERFORM fcat USING 'VC'                    'VC' '5'.
+  DATA(i_werks2) = i_werks[].
+  DELETE ADJACENT DUPLICATES FROM i_werks COMPARING werks.
+  LOOP AT i_werks .
+    ls_alv_cat-fieldname = i_werks-werks.
+    ls_alv_cat-inttype    = 'INT'.
+    ls_alv_cat-coltext    = i_werks-name1.
+    ls_alv_cat-outputlen = 15.
+    ls_alv_cat-icon      = 'X'.
+    ls_alv_cat-tooltip = 'Ikone_langgggggggggg'.
+    ls_alv_cat-seltext = i_werks-name1.
+    APPEND ls_alv_cat TO i_alv_cat.
+  ENDLOOP.
+
+*  perform fcat using 'TOTAL_STOCK'           'Total Stock' '15'.
+
+  ls_alv_cat-fieldname = 'TOTAL_STOCK'.
+  ls_alv_cat-inttype    = 'INT'.
+  ls_alv_cat-coltext    = 'Total Stock'.
+  ls_alv_cat-outputlen = 15.
+  ls_alv_cat-icon      = 'X'.
+  ls_alv_cat-tooltip = 'Ikone_langgggggggggg'.
+  ls_alv_cat-seltext = 'Total Stock'.
+  APPEND ls_alv_cat TO i_alv_cat.
+
+*  PERFORM fcat USING 'VC'                    'VC' '5'.
+
+  CALL METHOD cl_alv_table_create=>create_dynamic_table
+    EXPORTING
+      it_fieldcatalog = i_alv_cat
+    IMPORTING
+      ep_table        = d_ref.
+  ASSIGN d_ref->* TO <f_fs>.
+
+  CALL METHOD cl_alv_table_create=>create_dynamic_table
+    EXPORTING
+      it_fieldcatalog = i_alv_cat
+    IMPORTING
+      ep_table        = d_ref.
+  ASSIGN d_ref->* TO <f_fs_m>.
+
+*BREAK-POINT.
+  IF s_mvgr2 IS NOT INITIAL OR s_matnr IS NOT INITIAL.
+    SELECT * FROM mvke INTO TABLE @DATA(i_mvke) WHERE mvgr2 IN @s_mvgr2 AND matnr IN @s_matnr.
+*      BREAK-POINT.
+    SORT i_mvke BY matnr mvgr2.
+    DELETE ADJACENT DUPLICATES FROM i_mvke COMPARING matnr mvgr2.  """""" ADD
+  ELSE .
+
+    SELECT * FROM mara INTO TABLE @DATA(i_marara) . """" where mvgr2 in @s_mvgr2 .
+    MOVE-CORRESPONDING i_marara[] TO i_mvke[] .
+  ENDIF .
+  IF i_mvke IS NOT INITIAL .
+    SELECT * FROM mara INTO TABLE @DATA(i_mara) FOR ALL ENTRIES IN @i_mvke
+      WHERE matnr = @i_mvke-matnr .
+
+    SELECT * FROM makt INTO TABLE @DATA(i_makt) FOR ALL ENTRIES IN @i_mvke
+      WHERE matnr = @i_mvke-matnr .
+
+    SELECT * FROM mard INTO TABLE @DATA(i_mard) FOR ALL ENTRIES IN @i_mvke
+      WHERE matnr = @i_mvke-matnr . " and werks in ( '1001' , '2001' , '2002' ) .
+    SELECT * FROM marc INTO TABLE @DATA(i_marc) FOR ALL ENTRIES IN @i_mvke
+      WHERE matnr = @i_mvke-matnr ..
+    SELECT * FROM msku INTO TABLE @DATA(i_msku) FOR ALL ENTRIES IN @i_mvke
+    WHERE matnr = @i_mvke-matnr ..   """"""
+    DELETE i_mard WHERE labst IS INITIAL .
+    SORT i_mard BY matnr werks .
+    DELETE i_marc WHERE trame IS INITIAL.   """""""""""""add
+    SORT i_marc BY matnr werks.
+    DELETE i_msku WHERE kulab IS INITIAL.   """""""""""""add
+    SORT i_msku BY matnr werks.
+  ENDIF .
+*  BREAK-POINT.
+
+  DATA : lv_str TYPE char100 .
+  DATA : a TYPE char100 .
+  DATA : b TYPE char100 .
+  DATA : c TYPE char100 .
+*  BREAK-POINT.
+  LOOP AT i_mara INTO DATA(w_mara) .
+
+    APPEND INITIAL LINE TO <f_fs> ASSIGNING FIELD-SYMBOL(<fs_line_data>) .  """" ADDING LINE ...
+    DATA(idx) = sy-tabix .
+    ASSIGN COMPONENT 'MATNR' OF STRUCTURE <fs_line_data> TO FIELD-SYMBOL(<fsm>) .
+    ASSIGN COMPONENT 'VENDOR_PART_CODE' OF STRUCTURE <fs_line_data> TO FIELD-SYMBOL(<fsvp>) .
+    ASSIGN COMPONENT 'PART_CODE_DESC' OF STRUCTURE <fs_line_data> TO FIELD-SYMBOL(<fspc>) .
+    ASSIGN COMPONENT 'VC' OF STRUCTURE <fs_line_data> TO FIELD-SYMBOL(<fsvc>) .
+    <fsm> =   w_mara-matnr .
+
+    <fsm> = |{ <fsm> ALPHA = OUT }| .
+
+*    <fs_fw_sk>-matnr = |{ w_mara-matnr alpha = out }|.
+    READ TABLE i_makt INTO DATA(w_makt) WITH KEY matnr = w_mara-matnr .
+    IF sy-subrc = 0 .
+      lv_str = w_makt-maktx .
+      SPLIT lv_str AT '(' INTO a b .
+      SPLIT b AT ')' INTO a b .
+*      <fs_fw_sk>-vendor_part_code = a .
+      <fsvp> = a .
+      CLEAR : a , b .
+      SPLIT lv_str AT '(' INTO a b .
+      SPLIT b AT ')' INTO b c .
+*      <fs_fw_sk>-part_code_desc =  a .
+      <fspc> = a && c .
+
+      IF lv_str IS NOT INITIAL .
+        TRANSLATE lv_str TO UPPER CASE .
+        DATA(lenn) = strlen( lv_str ) .
+        IF lenn GT 2 .
+          lenn = lenn - 2 .
+          IF lv_str+lenn(2) = 'VC' .
+            <fsvc> = 'VC' .
+          ELSEIF <fsvc> IS INITIAL. ""<---GC
+            <fsvc> = 'VR' .
+          ENDIF .
+        ENDIF .
+      ENDIF .
+    ENDIF .
+*BREAK-POINT.
+    DATA : lv_field TYPE char30 .
+    DATA : lv_flag TYPE flag.
+    DATA : lv_flag1 TYPE flag.
+    FIELD-SYMBOLS : <field> TYPE any .
+    ASSIGN COMPONENT 'TOTAL_STOCK' OF STRUCTURE <fs_line_data> TO FIELD-SYMBOL(<fs_tot_stock>) .
+**    loop at i_werks into data(w_werks) ."""-->
+    CLEAR : lv_flag,lv_flag1 .
+    LOOP AT i_werks2 INTO DATA(w_werks) .
+*       CLEAR : lv_flag,lv_flag1 . " add 25.3.25
+      """"""""21.04.2025""""""""""
+      ON CHANGE OF w_werks-werks.
+        CLEAR : lv_flag,lv_flag1.
+      ENDON.
+      """"""""""""""""""""""""""""
+      IF w_werks-zflag NE 'X'.
+        ASSIGN COMPONENT w_werks-werks OF STRUCTURE <fs_line_data> TO FIELD-SYMBOL(<fswerks>) .
+
+        lv_field = |<FS_LINE_DATA>-{ w_werks-werks }| .
+        ASSIGN (lv_field) TO FIELD-SYMBOL(<fs_plant_val>) .
+
+        LOOP AT i_mard INTO DATA(w_mard) WHERE matnr  = w_mara-matnr AND
+                                               werks = w_werks-werks AND
+                                               lgort = w_werks-lgort.
+**        <fs_plant_val> = <fs_plant_val> + w_mard-labst ." +  w_marc-trame .   " cmnt 18.3.25
+          <fs_plant_val> = <fs_plant_val> + w_mard-labst + w_mard-speme ." +  w_marc-trame .     "add 18.3.25
+*        <fs_tot_stock> = <fs_tot_stock> + w_mard-labst ."+ w_marc-trame .
+          <fs_tot_stock> = <fs_tot_stock> + w_mard-labst + w_mard-speme .    ""PC(28.4.2025)
+        ENDLOOP .
+        IF lv_flag1 = ''.
+          LOOP AT i_marc INTO DATA(w_marc) WHERE matnr  = w_mara-matnr AND
+*                                             pstat = w_mard-pstat AND
+                                                 werks = w_werks-werks .
+*                                             werks = w_mard-werks .
+            <fs_tot_stock> = <fs_tot_stock> + w_marc-trame .
+            <fs_plant_val> = <fs_plant_val> + w_marc-trame .
+            lv_flag1 = 'X'.  " cmnt25.3.25
+          ENDLOOP .
+        ENDIF.
+        IF lv_flag = ''.
+          LOOP AT i_msku INTO DATA(w_msku) WHERE matnr  = w_mara-matnr AND werks = w_werks-werks .
+*                                             lgort = w_werks-lgort.
+            <fs_tot_stock> = <fs_tot_stock> + w_msku-kulab .
+            <fs_plant_val> = <fs_plant_val> + w_msku-kulab .
+            lv_flag = 'X'.  " cmnt25.3.25
+          ENDLOOP .
+        ENDIF.
+      ENDIF.
+      CLEAR : w_werks ,w_mard,w_marc,w_msku.
+
+    ENDLOOP.
+
+    IF <fs_tot_stock> IS INITIAL OR <fs_tot_stock> = '0' .
+      DELETE <f_fs> INDEX idx .
+    ENDIF .
+
+    CLEAR : a , b , lenn , lv_str , w_makt , w_mara , w_mard ,w_marc,
+            lv_flag1,lv_flag. ""added by preeti
+  ENDLOOP .
+
+
+  IF mail = '' ."and  mail2 = ''.
+
+    DATA: o_salv2 TYPE REF TO cl_salv_table,
+          columns TYPE REF TO cl_salv_columns_table,
+          column  TYPE REF TO cl_salv_column.
+
+    TRY.
+        CALL METHOD cl_salv_table=>factory
+          IMPORTING
+            r_salv_table = o_salv2
+          CHANGING
+            t_table      = <f_fs>.
+
+        columns = o_salv2->get_columns( ).
+
+        columns->set_optimize( ).
+        columns->set_optimize( 'X' ).
+
+
+
+        column = columns->get_column( 'MATNR' ).
+        column->set_medium_text( 'Material' ).
+
+
+        column = columns->get_column( 'VENDOR_PART_CODE' ).
+        column->set_medium_text( 'Vendor Part Code' ).
+
+
+        column = columns->get_column( 'PART_CODE_DESC' ).
+        column->set_medium_text( 'Part Code Desc' ).
+
+
+        column = columns->get_column( 'TOTAL_STOCK' ).
+        column->set_medium_text( 'Total Stock' ).
+
+
+        column = columns->get_column( 'VC' ).
+        column->set_medium_text( 'Type' ).
+
+
+        DATA : lv_strxx TYPE lvc_fname .
+        DATA : lv_strxxx TYPE scrtext_m .
+
+        DATA : lv_flg TYPE char1 .
+        DATA : lv_fieldx TYPE char30 .
+        DATA: lv_ans,
+              g_subj  TYPE so_obj_des,
+              v_name  TYPE lfa1-name1,
+              v_adrnr TYPE lfa1-adrnr,
+              g_ekpo  TYPE ekpo,
+              g_usr21 TYPE usr21,
+              g_adrp  TYPE adrp.
+        FIELD-SYMBOLS : <lv_fieldx> TYPE any .
+
+        LOOP AT i_werks INTO DATA(w_pp) .
+          CLEAR : lv_flg .
+          lv_strxx = w_pp-werks .
+          lv_strxxx = w_pp-name1 .
+          column = columns->get_column( lv_strxx ).
+          column->set_medium_text( lv_strxxx ).
+          LOOP AT <f_fs> ASSIGNING FIELD-SYMBOL(<f_w>) . " WHERE werks = w_pp-werks .
+            lv_fieldx = |<f_w>-{ w_pp-werks }| .
+            ASSIGN (lv_fieldx) TO FIELD-SYMBOL(<fvv>) .
+            IF <fvv> IS NOT INITIAL AND <fvv> NE '0' .
+              lv_flg = 'X' .
+              EXIT .
+            ENDIF .
+          ENDLOOP .
+
+          IF lv_flg = '' .
+            column->set_visible( value  = if_salv_c_bool_sap=>false ).
+          ENDIF .
+        ENDLOOP .
+
+        DATA layout_settings TYPE REF TO cl_salv_layout.
+        DATA layout_key      TYPE salv_s_layout_key.
+        layout_settings = o_salv2->get_layout( ).
+        layout_key-report = sy-repid.
+        layout_settings->set_key( layout_key ).
+        layout_settings->set_save_restriction( if_salv_c_layout=>restrict_none ).
+
+        DATA: lr_functions TYPE REF TO cl_salv_functions_list,
+              l_text       TYPE string,
+              l_icon       TYPE string.
+        lr_functions = o_salv2->get_functions( ).
+        lr_functions->set_all( 'X' ).
+
+        o_salv2->display( ).
+      CATCH cx_salv_msg .
+    ENDTRY.
+
+  ELSEIF mail = 'X' .
+
+
+    DATA: sk_mailsubject    TYPE sodocchgi1,
+          sk_mailrecipients TYPE STANDARD TABLE OF somlrec90,
+          sk_mailtxt        TYPE STANDARD TABLE OF soli.
+
+    DATA: v_send_request     TYPE REF TO cl_bcs.
+    DATA: text               TYPE bcsy_text.
+
+    DATA: t_html  TYPE bcsy_text,
+          st_html TYPE bcsy_text.
+
+    DATA: v_document         TYPE REF TO cl_document_bcs.
+    DATA: v_sender           TYPE REF TO cl_sapuser_bcs.
+    DATA: v_recipient        TYPE REF TO if_recipient_bcs.
+    DATA: bcs_exception      TYPE REF TO cx_bcs.
+    DATA: sent_to_all        TYPE os_boolean.
+    DATA : rpt(255) TYPE c,dat(15) TYPE c.
+    DATA : grsub TYPE so_obj_des.
+    DATA : mdid TYPE comm_id_long.
+
+    APPEND '<HTML>' TO t_html.
+    APPEND '<p>Respected Sir/Mam,</p>' TO t_html.
+    APPEND '<p>Please find the below Report :</p>' TO t_html.
+
+    CONCATENATE '<TABLE BORDER="1" STYLE="CURSOR: DEFAULT; BORDER:  1PX SOLID BLACK; BORDER-COLLAPSE: COLLAPSE; FONT-FAMILY: ARIAL, HELVETICA, SANS-SERIF" ' "  "#90EE90" '. #FBEFEF
+      'WIDTH="100%" ' ' "OVERFLOW-Y:SCROLL"'
+      '><TBODY><tr>' INTO rpt SEPARATED BY space .APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<th width="10%" ALIGN = "LEFT" bgcolor="#00BFFF" "style="font-size: 12px; MARGIN: 5PX; cursor: text; border:  1px solid black;">Material</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<th width="21%" ALIGN = "LEFT" bgcolor="#00BFFF" "style="font-size: 12px; MARGIN: 5PX; cursor: text; border:  1px solid black;">Material Description</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<th width="6%" bgcolor="#00BFFF" "style="font-size: 12px; margin: 5px; cursor: text; border:  1px solid black;">VC/VR</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+*<f_fs_m> = <f_fs>.
+    MOVE-CORRESPONDING <f_fs> TO <f_fs_m>.
+    LOOP AT <f_fs> ASSIGNING FIELD-SYMBOL(<fs_fw_sk>).
+      ASSIGN COMPONENT 'MATNR' OF STRUCTURE <fs_fw_sk> TO FIELD-SYMBOL(<wfs>) .
+      IF  <wfs>+0(3) NE 'F55' .  " <wfs>+0(4) = 'F238'   ."
+        DELETE <f_fs> .
+      ENDIF .
+    ENDLOOP .
+
+    LOOP AT <f_fs_m> ASSIGNING <fs_fw_sk>.
+      ASSIGN COMPONENT 'MATNR' OF STRUCTURE <fs_fw_sk> TO <wfs>.
+      IF   <wfs>+0(4) = 'F211' OR <wfs>+0(4) = ' F205'  . "  <wfs>+0(3) ne 'F55' .
+        DELETE <f_fs_m> .
+      ENDIF .
+    ENDLOOP .
+
+
+
+    LOOP AT i_werks INTO w_werks .
+      CLEAR : lv_flg  , lv_fieldx .
+      LOOP AT <f_fs> ASSIGNING FIELD-SYMBOL(<f_w_p>) .
+        lv_fieldx = |<f_w_p>-{ w_werks-werks }| .
+        ASSIGN (lv_fieldx) TO FIELD-SYMBOL(<fvvv>) .
+        IF <fvvv> IS NOT INITIAL AND <fvvv> NE '0' .
+          lv_flg = 'X' .
+          EXIT .
+        ENDIF .
+
+      ENDLOOP .
+
+      IF lv_flg = 'X' .
+        DATA : lv_width TYPE string.
+        CLEAR : lv_width .
+        CASE strlen( w_werks-name1  ).
+          WHEN 5 .
+            lv_width = '5%'.
+          WHEN  6 OR 7.
+            lv_width = '6%'.
+          WHEN  8 OR 9  .
+            lv_width = '7%'.
+          WHEN   10 OR 11 OR 12.
+            lv_width = '8%'.
+          WHEN OTHERS.
+            lv_width = '10%'.
+        ENDCASE.
+        CONCATENATE '<th width= 'lv_width' bgcolor="#00BFFF" "style="font-size: 12px; margin: 5px; cursor: text; border:  1px solid black;">' w_werks-name1 '</th>' INTO  rpt . APPEND rpt TO t_html. CLEAR rpt.
+      ENDIF .
+    ENDLOOP .
+
+    MOVE  '<th width="8%" bgcolor="#00BFFF" "style="font-size: 12px; margin: 5px; cursor: text; border:  1px solid black;">Total Stock</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE '</tr>' TO rpt.APPEND rpt TO t_html.CLEAR rpt.
+    CONDENSE rpt.
+    APPEND rpt TO t_html.
+    CLEAR : rpt .", <fs_fw_sk>.
+
+    DATA : lv_value TYPE char30,
+           count    TYPE i VALUE '1'.
+    CLEAR : lv_value .
+    UNASSIGN <fs_fw_sk>.
+    " for excelheader
+    CONCATENATE excel_strng 'MATERIAL' gc_tab
+                                 'MATERIAL DESCRIPTION' gc_tab
+                                 'VC/VR' gc_tab INTO excel_strng .
+    LOOP AT <f_fs> ASSIGNING <fs_fw_sk>.
+      ASSIGN COMPONENT 'MATNR' OF STRUCTURE <fs_fw_sk> TO FIELD-SYMBOL(<waa>) .
+      IF  <waa>+0(3) = 'F55' . "  <waa>+0(4) = 'F211' OR <waa>+0(4) = ' F205'  ."
+        ASSIGN COMPONENT 'VENDOR_PART_CODE' OF STRUCTURE <fs_fw_sk> TO FIELD-SYMBOL(<fsvp_v>) .
+        CONCATENATE '<td align="left" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">' <fsvp_v> '</td>' INTO rpt.APPEND rpt TO t_html.CLEAR rpt.
+        ASSIGN COMPONENT 'PART_CODE_DESC' OF STRUCTURE <fs_fw_sk> TO FIELD-SYMBOL(<fspc_v>) .
+        CONCATENATE '<td align="left" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">' <fspc_v> '</td>' INTO rpt.APPEND rpt TO t_html.CLEAR rpt.
+        CLEAR : lv_field .
+        ASSIGN COMPONENT 'VC' OF STRUCTURE <fs_fw_sk> TO FIELD-SYMBOL(<fs_vc>) .
+        rpt = |<td align="center" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">{ <fs_vc> }</td>| .
+        APPEND rpt TO t_html .
+        CLEAR : rpt .
+        " exceldata
+        CONCATENATE excel_strng2 <fsvp_v>  gc_tab
+                                 <fspc_v> gc_tab
+                                 <fs_vc> gc_tab
+                                 INTO excel_strng2 .
+        DATA : p_value TYPE string .
+        LOOP AT i_werks INTO w_werks .
+          CLEAR : lv_flg  , lv_fieldx .
+          FIELD-SYMBOLS   <fvvvx> TYPE any  .
+          LOOP AT <f_fs> ASSIGNING FIELD-SYMBOL(<f_w_pp>) .
+            lv_fieldx = |<f_w_pp>-{ w_werks-werks }| .
+            ASSIGN (lv_fieldx) TO <fvvvx> .
+            IF <fvvvx> IS NOT INITIAL AND <fvvvx> NE '0' .
+              lv_flg = 'X' .
+              EXIT .
+            ENDIF .
+          ENDLOOP .
+
+          IF lv_flg = 'X' .
+            ASSIGN COMPONENT w_werks-werks OF STRUCTURE <fs_fw_sk> TO FIELD-SYMBOL(<fswerks_v>) .
+            rpt = |<td align="right" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">{ <fswerks_v> }</td>| .
+            APPEND rpt TO t_html .
+            CLEAR : rpt .
+            IF count = '1' .
+              TRANSLATE  w_werks-name1  TO UPPER CASE.
+              CONCATENATE excel_strng   w_werks-name1 gc_tab  INTO excel_strng .
+            ENDIF .
+            p_value = <fswerks_v> .
+            CONCATENATE excel_strng2 p_value  gc_tab INTO excel_strng2 .
+          ENDIF .
+        ENDLOOP .
+
+        ASSIGN COMPONENT 'TOTAL_STOCK' OF STRUCTURE <fs_fw_sk> TO FIELD-SYMBOL(<fsts_v>) .
+        rpt = |<td align="right" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">{ <fsts_v> }</td>| .
+        APPEND rpt TO t_html .
+        CLEAR : rpt .
+        MOVE '</tr>'  TO rpt.APPEND rpt TO t_html.CLEAR rpt.
+        CONDENSE rpt.
+        APPEND rpt TO t_html.
+        IF count = '1' .
+          CONCATENATE excel_strng   'TOTAL_STOCK' gc_tab  INTO excel_strng .
+        ENDIF .
+        CLEAR : p_value .
+        p_value = <fsts_v> .
+        CONCATENATE excel_strng2   p_value gc_crlf  INTO excel_strng2 .
+        count = count + 1 . .
+      ENDIF.
+    ENDLOOP  .
+  CONCATENATE excel_strng gc_crlf excel_strng2  gc_crlf INTO excel_strng3 .
+
+
+    """""" Add total to Mail Rep .....  """ SK . ...
+    MOVE  '<tr><td  bgcolor="#00BFFF" align="center" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;"><B>Total</B></td>' TO rpt.
+    APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<td bgcolor="#00BFFF"</td>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<td bgcolor="#00BFFF"</td>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+
+    DATA : lv_tot   TYPE char50, lv_tot_t TYPE char50 .
+    CLEAR : lv_tot_t .
+    CONCATENATE excel_strng3 'TOTAL' gc_tab gc_tab gc_tab   INTO excel_strng3 .
+    LOOP AT i_werks INTO w_werks .
+      CLEAR : lv_flg  , lv_fieldx , lv_tot .
+      LOOP AT <f_fs> ASSIGNING FIELD-SYMBOL(<f_w_p1>) .
+        ASSIGN COMPONENT 'MATNR' OF STRUCTURE <f_w_p1> TO <waa> .
+        IF  <waa>+0(3) = 'F55' . " <waa>+0(4) = 'F211' OR <waa>+0(4) = ' F205' ."
+          lv_fieldx = |<f_w_p1>-{ w_werks-werks }| .
+          ASSIGN (lv_fieldx) TO FIELD-SYMBOL(<fvvv1>) .
+          IF <fvvv1> IS NOT INITIAL AND <fvvv1> NE '0' .
+            lv_flg = 'X' .
+            lv_tot = lv_tot + <fvvv1> .
+            lv_tot_t = lv_tot_t + <fvvv1> .
+            CONDENSE : lv_tot , lv_tot_t .
+          ENDIF .
+        ENDIF.
+      ENDLOOP .
+
+      IF lv_flg = 'X' .
+        rpt = |<td bgcolor="#00BFFF" align="right" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;"><B>{ lv_tot }</B></td>| .
+        APPEND rpt TO t_html.CLEAR rpt.
+      ENDIF .
+      CONCATENATE excel_strng3  lv_tot   INTO excel_strng3 .
+    ENDLOOP .
+    rpt = |<td bgcolor="#00BFFF" align="right""STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;"><B>{ lv_tot_t }</B></td>| .
+    CLEAR : p_value .
+    p_value = lv_tot_t .
+    CONCATENATE excel_strng gc_tab p_value   INTO excel_strng .
+    APPEND rpt TO t_html .
+    CLEAR : rpt .
+    MOVE '</tr>'  TO rpt.APPEND rpt TO t_html.CLEAR rpt.
+    CONDENSE rpt.
+    APPEND rpt TO t_html.
+    CLEAR rpt.
+    APPEND rpt TO t_html.
+    CLEAR rpt.
+    APPEND rpt TO t_html.
+    APPEND '</table><p>..</p>' TO t_html.
+    clear : excel_strng ,excel_strng2 .
+
+***************************CHANGES BY ISHIKA
+clear : count .
+count = '1' .
+" for excelheader
+
+
+CONCATENATE excel_strng3 gc_crlf gc_crlf gc_crlf  'HP Accessories:' gc_crlf INTO excel_strng3 .
+    CONCATENATE excel_strng 'MATERIAL' gc_tab
+                                 'MATERIAL DESCRIPTION' gc_tab
+                                 'VC/VR' gc_tab INTO excel_strng .
+
+    APPEND '<p>HP Accessories:</p>' TO t_html.
+    CONCATENATE '<TABLE BORDER="1" STYLE="CURSOR: DEFAULT; BORDER:  1PX SOLID BLACK; BORDER-COLLAPSE: COLLAPSE; FONT-FAMILY: ARIAL, HELVETICA, SANS-SERIF" ' "  "#90EE90" '. #FBEFEF
+      'WIDTH="100%" ' ' "OVERFLOW-Y:SCROLL"' '><TBODY><tr>' INTO rpt SEPARATED BY space .APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<th width="10%" ALIGN = "LEFT" bgcolor="#00BFFF" "style="font-size: 12px; MARGIN: 5PX; cursor: text; border:  1px solid black;">Material</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<th width="21%" ALIGN = "LEFT" bgcolor="#00BFFF" "style="font-size: 12px; MARGIN: 5PX; cursor: text; border:  1px solid black;">Material Description</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<th width="6%" bgcolor="#00BFFF" "style="font-size: 12px; margin: 5px; cursor: text; border:  1px solid black;">VC/VR</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+
+    LOOP AT i_werks INTO w_werks .
+      CLEAR : lv_flg  , lv_fieldx .
+      LOOP AT <f_fs_m> ASSIGNING FIELD-SYMBOL(<f_w_p2>) .
+        lv_fieldx = |<f_w_p2>-{ w_werks-werks }| .
+        ASSIGN (lv_fieldx) TO FIELD-SYMBOL(<fvvva>) .
+        IF <fvvva> IS NOT INITIAL AND <fvvva> NE '0' .
+          lv_flg = 'X' .
+          EXIT .
+        ENDIF .
+      ENDLOOP .
+      IF lv_flg = 'X' .
+        CLEAR : lv_width .
+        CASE strlen( w_werks-name1  ).
+          WHEN 5 .
+            lv_width = '5%'.
+          WHEN  6 OR 7.
+            lv_width = '6%'.
+          WHEN  8 OR 9  .
+            lv_width = '7%'.
+          WHEN   10 OR 11 OR 12.
+            lv_width = '8%'.
+          WHEN OTHERS.
+            lv_width = '10%'.
+        ENDCASE.
+        CONCATENATE '<th width= 'lv_width' bgcolor="#00BFFF" "style="font-size: 12px; margin: 5px; cursor: text; border:  1px solid black;">' w_werks-name1 '</th>' INTO  rpt . APPEND rpt TO t_html.CLEAR rpt.
+      ENDIF .
+    ENDLOOP .
+
+    MOVE  '<th width="8%" bgcolor="#00BFFF" "style="font-size: 12px; margin: 5px; cursor: text; border:  1px solid black;">Total Stock</th>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE '</tr>' TO rpt.APPEND rpt TO t_html.CLEAR rpt.
+    CONDENSE rpt.
+    APPEND rpt TO t_html.
+    CLEAR : rpt.
+
+    CLEAR : lv_value .
+
+    LOOP AT <f_fs_m> ASSIGNING FIELD-SYMBOL(<fs_fw_sk2>).
+      ASSIGN COMPONENT 'MATNR' OF STRUCTURE <fs_fw_sk2> TO <waa> .
+      IF  <waa>+0(4) = 'F238'  ." <waa>+0(3) = 'F26' . "
+        ASSIGN COMPONENT 'VENDOR_PART_CODE' OF STRUCTURE <fs_fw_sk2> TO FIELD-SYMBOL(<fsvp_v2>) .
+        CONCATENATE '<td align="left" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">' <fsvp_v2> '</td>' INTO rpt.APPEND rpt TO t_html.CLEAR rpt.
+        ASSIGN COMPONENT 'PART_CODE_DESC' OF STRUCTURE <fs_fw_sk2> TO FIELD-SYMBOL(<fspc_v2>) .
+        CONCATENATE '<td align="left" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">' <fspc_v2> '</td>' INTO rpt.APPEND rpt TO t_html.CLEAR rpt.
+        ASSIGN COMPONENT 'VC' OF STRUCTURE <fs_fw_sk2> TO FIELD-SYMBOL(<fs_vc1>) .
+        rpt = |<td align="center" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">{ <fs_vc1> }</td>| .
+        APPEND rpt TO t_html .
+        CLEAR : rpt .
+
+        CLEAR : lv_field . " exceldata
+        CONCATENATE excel_strng2 <fsvp_v>  gc_tab
+                                 <fspc_v> gc_tab
+                                 <fs_vc> gc_tab
+                                 INTO excel_strng2 .
+        FIELD-SYMBOLS <fvvvx2> TYPE any .
+        LOOP AT i_werks INTO w_werks .
+          CLEAR : lv_flg  , lv_fieldx .
+          LOOP AT <f_fs_m> ASSIGNING FIELD-SYMBOL(<f_w_pp2>) .
+            lv_fieldx = |<f_w_pp2>-{ w_werks-werks }| .
+            ASSIGN (lv_fieldx) TO <fvvvx2> .
+            IF <fvvvx2> IS NOT INITIAL AND <fvvvx2> NE '0' .
+              lv_flg = 'X' .
+              EXIT .
+            ENDIF .
+          ENDLOOP .
+
+          IF lv_flg = 'X' .
+            ASSIGN COMPONENT w_werks-werks OF STRUCTURE <fs_fw_sk2> TO <fswerks_v>.
+            rpt = |<td align="right" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">{ <fswerks_v> }</td>| .
+            APPEND rpt TO t_html .
+            CLEAR : rpt .
+              IF count = '1' .
+                 TRANSLATE  w_werks-name1  TO UPPER CASE.
+              CONCATENATE excel_strng   w_werks-name1 gc_tab  INTO excel_strng .
+
+            ENDIF .
+            p_value = <fswerks_v> .
+            CONCATENATE excel_strng2 p_value  gc_tab INTO excel_strng2 .
+          ENDIF .
+        ENDLOOP .
+
+        ASSIGN COMPONENT 'TOTAL_STOCK' OF STRUCTURE <fs_fw_sk2> TO FIELD-SYMBOL(<fsts_v1>) .
+        rpt = |<td align="right" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;">{ <fsts_v1> }</td>| .
+        APPEND rpt TO t_html .
+        CLEAR : rpt .
+
+        MOVE '</tr>'   TO rpt.APPEND rpt TO t_html.CLEAR rpt.
+        CONDENSE rpt.
+        APPEND rpt TO t_html.
+          IF count = '1' .
+          CONCATENATE excel_strng   'TOTAL_STOCK' gc_tab  INTO excel_strng .
+        ENDIF .
+        CLEAR : p_value .
+        p_value = <fsts_v> .
+        CONCATENATE excel_strng2   p_value gc_crlf  INTO excel_strng2 .
+        count = count + 1 . .
+      ENDIF.
+    ENDLOOP  .
+     CONCATENATE excel_strng3  excel_strng gc_crlf excel_strng2  gc_crlf INTO excel_strng3 .
+
+
+    MOVE  '<tr><td bgcolor="#00BFFF" align="center" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;"><B>Total</B></td>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+    MOVE  '<td bgcolor="#00BFFF"</td>' TO rpt. APPEND rpt TO t_html.CLEAR rpt.
+
+    rpt = |<td bgcolor="#00BFFF" align="right"></td>| .
+    APPEND rpt TO t_html .
+    CLEAR : rpt .
+
+    CLEAR : lv_tot_t .
+     CONCATENATE excel_strng3 'TOTAL' gc_tab gc_tab gc_tab   INTO excel_strng3 .
+
+    LOOP AT i_werks INTO w_werks .
+      CLEAR : lv_flg  , lv_fieldx , lv_tot .
+      LOOP AT <f_fs_m> ASSIGNING FIELD-SYMBOL(<f_w_p21>) .
+        ASSIGN COMPONENT 'MATNR' OF STRUCTURE <f_w_p21> TO <waa> .
+        IF  <waa>+0(4) = 'F238'  ." <waa>+0(3) = 'F26' . "
+          lv_fieldx = |<f_w_p21>-{ w_werks-werks }| .
+          ASSIGN (lv_fieldx) TO FIELD-SYMBOL(<fvvv2>) .
+          IF <fvvv2> IS NOT INITIAL AND <fvvv2> NE '0' .
+            lv_flg = 'X' .
+            lv_tot = lv_tot + <fvvv2> .
+            lv_tot_t = lv_tot_t + <fvvv2> .
+            CONDENSE : lv_tot , lv_tot_t .
+          ENDIF .
+        ENDIF.
+      ENDLOOP .
+
+      IF lv_flg = 'X' .
+        rpt = |<td bgcolor="#00BFFF" align="right" "STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;"><B>{ lv_tot }</B></td>| .
+        APPEND rpt TO t_html.CLEAR rpt.
+      ENDIF .
+      CONCATENATE excel_strng3  lv_tot   INTO excel_strng3 .
+    ENDLOOP .
+
+    rpt = |<td bgcolor="#00BFFF" align="right""STYLE="FONT-SIZE: 12PX;MARGIN: 5PX;"><B>{ lv_tot_t }</B></td>| .
+    APPEND rpt TO t_html .
+    CLEAR : rpt .
+
+    MOVE '</tr>'  TO rpt.APPEND rpt TO t_html.CLEAR rpt.
+    CONDENSE rpt.
+    APPEND rpt TO t_html.
+    CLEAR rpt.
+    APPEND rpt TO t_html.
+    CLEAR rpt.
+    APPEND rpt TO t_html.
+    APPEND '</table><p>..</p>' TO t_html.
+***************************END OF CHANGES ISHIKA
+
+DATA : lv_xstr   TYPE xstring,
+           it_binary TYPE solix_tab.
+    CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+      EXPORTING
+        text   = excel_strng3
+      IMPORTING
+        buffer = lv_xstr
+      EXCEPTIONS
+        failed = 1
+        OTHERS = 2.
+
+    "******XSTRING TO BINARY
+    CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+      EXPORTING
+        buffer        = lv_xstr
+      TABLES
+        binary_tab    = it_binary
+      EXCEPTIONS
+        program_error = 1
+        OTHERS        = 2.
+
+
+    APPEND '<p>**** This is an auto generated Notification by SAP, please do not reply****</p>' TO t_html.
+    CLEAR : lv_variant, grsub.
+*   lv_Variant =  SY-SLSET .
+*TRANSLATE lv_Variant TO UPPER CASE.
+
+
+    grsub = |{ 'Beetel Stock Report' }|.
+
+    TRY.
+*     -------- create persistent send request ------------------------
+        v_send_request = cl_bcs=>create_persistent( ).
+
+        IF t_html[] IS NOT INITIAL.
+          v_document = cl_document_bcs=>create_document(
+          i_type = 'HTM' "Since it is an HTML body
+          i_importance = '5'
+          i_text = t_html
+          i_subject = grsub ).
+
+          CALL METHOD v_send_request->set_document( v_document ).
+
+          "***ATTACHMENT
+
+          CALL METHOD v_document->add_attachment
+            EXPORTING
+              i_attachment_type    = 'XLS'
+              i_attachment_subject = grsub
+*             i_attachment_size    = gv_size
+              i_att_content_hex    = it_binary.
+
+
+* Get Sender Object
+          CALL METHOD v_send_request->set_sender
+            EXPORTING
+              i_sender = v_sender.
+
+*          clear : pw_mail .
+          SELECT * FROM zven_mail INTO TABLE @DATA(it_mail)  .
+          CHECK it_mail IS NOT INITIAL .
+          LOOP AT it_mail INTO DATA(pw_mail) . "" where werks = plnt_s .
+
+            mdid = pw_mail-mail .  .
+            v_recipient = cl_cam_address_bcs=>create_internet_address( mdid ).
+
+            IF pw_mail-mail_to_cc = 'TO'.
+              CALL METHOD v_send_request->add_recipient
+                EXPORTING
+                  i_recipient = v_recipient
+*                 I_COPY      = ' '
+*                 I_BLIND_COPY = ' '
+                  i_express   = 'X'.
+*                I_NO_FORWARD = ' '.
+            ELSEIF pw_mail-mail_to_cc = 'CC'.
+              CALL METHOD v_send_request->add_recipient
+                EXPORTING
+                  i_recipient = v_recipient
+                  i_copy      = 'X'
+*                 I_BLIND_COPY = ' '
+                  i_express   = 'X'.
+*                I_NO_FORWARD = ' '.
+            ENDIF.
+            CLEAR: pw_mail ,  mdid  .
+          ENDLOOP.
+        ENDIF.
+
+        IF v_recipient IS NOT INITIAL.
+          v_send_request->set_send_immediately('X').
+          CALL METHOD v_send_request->send(
+            EXPORTING
+              i_with_error_screen = 'X'
+            RECEIVING
+              result              = sent_to_all ).
+          IF sy-subrc EQ 0.
+            COMMIT WORK.
+            MESSAGE 'Mail Sent' TYPE 'S' .
+*   Push mail out from SAP outbox
+*            submit rsconn01 with mode = 'INT' and return.
+          ENDIF.
+        ENDIF.
+    ENDTRY.
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display .
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FCAT
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM fcat USING    VALUE(p1)
+                    VALUE(p2)
+                    VALUE(p3).
+
+
+  ls_alv_cat-fieldname = p1.
+  ls_alv_cat-inttype    = 'CHAR'.
+  ls_alv_cat-coltext    = p2.
+  ls_alv_cat-outputlen = p3.
+  ls_alv_cat-icon      = 'X'.
+  ls_alv_cat-tooltip = 'Ikone_langgggggggggg'.
+  ls_alv_cat-seltext = 'Ikone_mittellll'.
+  APPEND ls_alv_cat TO i_alv_cat.
+
+ENDFORM.

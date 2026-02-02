@@ -1,0 +1,131 @@
+*&---------------------------------------------------------------------*
+*& Report ZHDFC_RESPONSE
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zhdfc_response.
+
+TABLES: zhdfc_response.
+
+TYPES: BEGIN OF ty_finaltab.
+         INCLUDE STRUCTURE zhdfc_response.
+
+TYPES : END OF ty_finaltab.
+
+
+
+*DATA : it_final TYPE TABLE OF ty_finaltab,
+*       wa_final TYPE ty_finaltab.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1.
+  SELECT-OPTIONS :  so_bukrs FOR zhdfc_response-comp_code ,     " Company Code
+                    so_gjahr FOR zhdfc_response-fis_year ,    " Fiscal Year
+                    so_vdate FOR zhdfc_response-valuedate,             " Value Date
+                    so_dstat FOR zhdfc_response-doc_status,                " Document Post Status
+                    so_pcode FOR zhdfc_response-partycode,     " Party Code
+                    so_pname FOR zhdfc_response-partyname.     " Party Name
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+  SELECT *
+  FROM zhdfc_response
+  INTO TABLE @DATA(it_final)
+  WHERE comp_code  IN @so_bukrs
+    AND fis_year   IN @so_gjahr
+    AND valuedate  IN @so_vdate
+    AND doc_status IN @so_dstat
+    AND partycode  IN @so_pcode
+    AND partyname  IN @so_pname.
+
+
+  PERFORM display.
+*&---------------------------------------------------------------------*
+*& Form display
+*&---------------------------------------------------------------------*
+
+FORM display .
+
+  DATA(gs_layout)   = VALUE slis_layout_alv(
+                          zebra              = abap_true"'X'
+                          colwidth_optimize  = abap_true ).
+
+
+  DATA(gt_fieldcat) = VALUE slis_t_fieldcat_alv(
+    ( fieldname = 'SPEICAL_GL'           seltext_m = 'Spl GL Ind'        col_pos = 1 )
+    ( fieldname = 'CONT_AREA'            seltext_m = 'Controlling Area' col_pos = 2 )
+    ( fieldname = 'GL_ACC'               seltext_m = 'G/L Account'      col_pos = 3 )
+    ( fieldname = 'TRANSACTIONID'        seltext_m = 'Transaction ID'   col_pos = 4 )
+    ( fieldname = 'TYPEOFENTRY'          seltext_m = 'Type of Entry'    col_pos = 5 )
+    ( fieldname = 'DRORCR'               seltext_m = 'Dr / Cr'          col_pos = 6 )
+    ( fieldname = 'ENTRYAMOUNT'          seltext_m = 'Entry Amount'     col_pos = 7 )
+    ( fieldname = 'VALUEDATE'            seltext_m = 'Value Date'       col_pos = 8 )
+    ( fieldname = 'PRODUCT'              seltext_m = 'Product'          col_pos = 9 )
+    ( fieldname = 'PARTYCODE'            seltext_m = 'Party Code'       col_pos = 10 )
+    ( fieldname = 'PARTYNAME'            seltext_m = 'Party Name'       col_pos = 11 )
+    ( fieldname = 'VIRTUALACCOUNTNUMBER' seltext_m = 'Virtual Account'  col_pos = 12 )
+    ( fieldname = 'LOCATIONS'            seltext_m = 'Location'         col_pos = 13 )
+    ( fieldname = 'REMITTINGBANK'        seltext_m = 'Remitting Bank'   col_pos = 14 )
+    ( fieldname = 'UTRNO'                seltext_m = 'UTR No'           col_pos = 15 )
+    ( fieldname = 'CLIENTNAME'           seltext_m = 'Client Name'      col_pos = 16 )
+    ( fieldname = 'REMITTERACCOUNT'      seltext_m = 'Remitter Account' col_pos = 17 )
+    ( fieldname = 'REMITTERNAME'         seltext_m = 'Remitter Name'    col_pos = 18 )
+    ( fieldname = 'REMITTERIFSC'         seltext_m = 'Remitter IFSC'    col_pos = 19 )
+    ( fieldname = 'DOC_NO'               seltext_m = 'Document No'      col_pos = 20 )
+    ( fieldname = 'COMP_CODE'            seltext_m = 'Company Code'     col_pos = 21 )
+    ( fieldname = 'FIS_YEAR'             seltext_m = 'Fiscal Year'      col_pos = 22 )
+    ( fieldname = 'DOC_STATUS'           seltext_m = 'Doc Status'       col_pos = 23 )
+    ( fieldname = 'DEBIT_CREDIT'         seltext_m = 'Debit/Credit'     col_pos = 24 )
+    ( fieldname = 'ACCOUNT_NO'           seltext_m = 'Account No'       col_pos = 25 )
+    ( fieldname = 'PLACE'                seltext_m = 'Place'            col_pos = 26 )
+  ).
+
+
+  IF it_final IS NOT INITIAL.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program = sy-repid
+        is_layout          = gs_layout
+        it_fieldcat        = gt_fieldcat
+      TABLES
+        t_outtab           = it_final
+      EXCEPTIONS
+        program_error      = 1
+        OTHERS             = 2.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Error displaying ALV' TYPE 'E'.
+    ENDIF.
+  ENDIF.
+
+
+
+ENDFORM.
+
+*        SPEICAL_GL,
+*        cont_area,
+*        gl_acc,
+*        transactionid,
+*        TYPEOFENTRY,
+*        drorcr,
+*        entryamount,
+*        valuedate,
+*        product,
+*        partycode,
+*        partyname,
+*        virtualaccountnumber,
+*        locations,
+*        remittingbank,
+*        utrno,
+*        clientname,
+*        remitteraccount,
+*        remittername,
+*        remitterifsc,
+*        doc_no,
+*        comp_code,
+*        fis_year,
+*        doc_status,
+*        debit_credit,
+*        account_no,
+*        place

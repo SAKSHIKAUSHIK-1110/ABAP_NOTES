@@ -1,1 +1,2 @@
 HR_99S_INTERVAL_BETWEEN_DATES - FM for date difference .
+wa_final-lifnr = |{ wa_final-lifnr ALPHA = OUT }|.

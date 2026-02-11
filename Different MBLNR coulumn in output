@@ -1,0 +1,221 @@
+REPORT zmm_gr_blocked_stock_rpt_1.
+
+TABLES : t001w,ekko,lfa1,ekpo,makt,matdoc.
+
+TYPES: BEGIN OF lty_final,
+         werks         TYPE t001w-werks,
+         lifnr         TYPE ekko-lifnr,
+         name1         TYPE lfa1-name1,
+         ebeln         TYPE ekko-ebeln,
+         ebelp         TYPE ekpo-ebelp,
+         matnr         TYPE ekpo-matnr,
+         maktx         TYPE makt-maktx,
+         gate_mblnr    TYPE matdoc-mblnr,
+         gate_budat    TYPE matdoc-budat,
+         gate_qty      TYPE matdoc-menge,
+         store_mblnr   TYPE matdoc-mblnr,
+         store_budat   TYPE matdoc-budat,
+         matdoc125_qty TYPE matdoc-mblnr,
+         store_qty     TYPE matdoc-menge,
+         balance_qty   TYPE matdoc-menge,
+         matdoc124_qty TYPE matdoc-menge,
+         qty_125       TYPE matdoc-menge,
+         mblnr_125     TYPE matdoc-mblnr,
+         final_qty     TYPE matdoc-menge,
+       END OF lty_final.
+
+DATA: it_final TYPE TABLE OF lty_final,
+      wa_final TYPE lty_final.
+
+DATA: it_fieldcat TYPE slis_t_fieldcat_alv,
+      wa_fieldcat TYPE slis_fieldcat_alv.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  SELECT-OPTIONS :s_werks FOR matdoc-werks,  "no intervals no-extension "OBLIGATORY,
+                  s_matnr FOR matdoc-matnr , "no intervals no-extension ,
+                  s_ebeln FOR matdoc-ebeln  ,"no intervals no-extension  , "OBLIGATORY ,
+                  s_budat FOR matdoc-budat. "OBLIGATORY .
+
+SELECTION-SCREEN END OF BLOCK b1.
+*BREAK-POINT.
+START-OF-SELECTION.
+  SELECT ebeln, ebelp, matnr, werks
+    FROM ekpo
+    WHERE werks IN @s_werks
+      AND ebeln IN @s_ebeln
+      AND matnr IN @s_matnr
+    INTO TABLE @DATA(it_ekpo).
+
+
+  IF it_ekpo IS INITIAL.
+  ENDIF.
+
+  SELECT ebeln, lifnr
+    FROM ekko
+    FOR ALL ENTRIES IN @it_ekpo
+    WHERE ebeln = @it_ekpo-ebeln
+    INTO TABLE @DATA(it_ekko).
+
+
+
+  SELECT lifnr, name1
+    FROM lfa1
+    FOR ALL ENTRIES IN @it_ekko
+    WHERE lifnr = @it_ekko-lifnr
+    INTO TABLE @DATA(it_lfa1).
+
+  SELECT matnr, maktx
+    FROM makt
+    FOR ALL ENTRIES IN @it_ekpo
+    WHERE matnr = @it_ekpo-matnr
+    INTO TABLE @DATA(it_makt).
+
+  SELECT ebeln, ebelp, matnr, werks, bwart, mblnr, budat, menge
+    FROM matdoc
+    FOR ALL ENTRIES IN @it_ekpo
+    WHERE ebeln = @it_ekpo-ebeln
+      AND ebelp = @it_ekpo-ebelp
+      AND matnr = @it_ekpo-matnr
+      AND werks = @it_ekpo-werks
+      AND bwart IN ('103', '105', '124', '125')
+*    AND budat IN @s_budat
+      AND bldat IN @s_budat
+    INTO TABLE @DATA(it_matdoc).
+
+
+  SORT it_ekko BY ebeln .
+  SORT it_lfa1 BY lifnr .
+  SORT it_makt BY matnr .
+  SORT it_matdoc BY ebeln ebelp bwart .
+  SORT it_ekpo BY ebeln ebelp matnr .
+
+
+  LOOP AT it_ekpo INTO DATA(wa_ekpo).
+    wa_final-ebelp = wa_ekpo-ebelp.
+    wa_final-matnr = wa_ekpo-matnr.
+    wa_final-ebeln = wa_ekpo-ebeln.
+    wa_final-werks = wa_ekpo-werks.
+
+
+    READ TABLE it_ekko INTO DATA(wa_ekko) WITH KEY ebeln = wa_ekpo-ebeln BINARY SEARCH.
+    IF sy-subrc = 0 .
+      wa_final-lifnr = wa_ekko-lifnr.
+    ENDIF.
+
+    READ TABLE it_lfa1 INTO DATA(wa_lfa1) WITH KEY lifnr = wa_ekko-lifnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-name1 = wa_lfa1-name1.
+
+    ENDIF.
+
+    READ TABLE it_makt INTO DATA(wa_makt) WITH KEY matnr = wa_ekpo-matnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-maktx = wa_makt-maktx.
+    ENDIF.
+
+    READ TABLE it_matdoc INTO  DATA(wa_matdoc) WITH KEY ebeln = wa_ekpo-ebeln
+                                                        ebelp = wa_ekpo-ebelp
+                                                        bwart = '103' BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-gate_mblnr = wa_matdoc-mblnr.
+      wa_final-gate_qty = wa_matdoc-menge.
+      wa_final-gate_budat = wa_matdoc-budat.
+
+    ENDIF.
+
+    READ TABLE it_matdoc INTO DATA(wa_mat)
+         WITH KEY ebeln = wa_ekpo-ebeln
+                  ebelp = wa_ekpo-ebelp
+                  bwart = '105' BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-store_mblnr = wa_mat-mblnr.
+      wa_final-store_qty = wa_mat-menge.
+      wa_final-gate_budat = wa_mat-budat.
+      wa_final-store_budat = wa_mat-budat.
+    ENDIF.
+
+    READ TABLE it_matdoc INTO DATA(wa_matd)
+         WITH KEY ebeln = wa_ekpo-ebeln
+                  ebelp = wa_ekpo-ebelp
+                  bwart = '124' BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-matdoc124_qty = wa_matd-menge.
+      wa_final-matdoc125_qty = wa_matd-mblnr.
+    ENDIF.
+
+
+    READ TABLE it_matdoc INTO DATA(wa_mats)
+     WITH KEY ebeln = wa_ekpo-ebeln
+              ebelp = wa_ekpo-ebelp
+              bwart = '125' BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-qty_125 = wa_mats-menge.
+      wa_final-mblnr_125 = wa_mats-mblnr.
+    ENDIF.
+
+    " Balance Qty = Gate Entry Qty - Store Entry Qty
+
+    wa_final-balance_qty = wa_final-gate_qty - wa_final-store_qty.
+
+    " Final Qty = Balance Qty - Material Doc 124 Qty
+
+    wa_final-final_qty = wa_final-balance_qty - wa_final-matdoc124_qty.
+
+    " final qty becomes negative, set to 0
+
+    IF wa_final-final_qty < 0.
+      wa_final-final_qty = 0.
+    ENDIF.
+
+    wa_final-lifnr = |{ wa_final-lifnr ALPHA = OUT }|.
+    wa_final-matnr = |{ wa_final-matnr ALPHA = OUT }|.
+
+    APPEND wa_final TO it_final.
+    CLEAR : wa_final.
+
+  ENDLOOP.
+
+  DEFINE add_fieldcat.
+
+    wa_fieldcat-fieldname = &1.
+    wa_fieldcat-seltext_m = &2.
+    APPEND wa_fieldcat TO it_fieldcat.
+    CLEAR wa_fieldcat.
+  END-OF-DEFINITION.
+
+  add_fieldcat 'WERKS'           'Plant'.
+  add_fieldcat 'LIFNR'           'Vendor Code'.
+  add_fieldcat 'NAME1'           'Vendor Name'.
+  add_fieldcat 'EBELN'           'PO Number'.
+  add_fieldcat 'EBELP'           'Line Number'.
+  add_fieldcat 'MATNR'           'Material Code'.
+  add_fieldcat 'MAKTX'           'Material Description'.
+  add_fieldcat 'GATE_MBLNR'      'Gate Entry Number'.
+  add_fieldcat 'GATE_BUDAT'      'Gate Entry Posting Date'.
+  add_fieldcat 'GATE_QTY'        'Gate Entry Qty'.
+  add_fieldcat 'STORE_MBLNR'     'Store Etry No.'.
+  add_fieldcat 'STORE_BUDAT'     'Store Posting Date'.
+  add_fieldcat 'STORE_QTY'       'Store Entry Qty'.
+  add_fieldcat 'BALANCE_QTY'     'Balance Qty'.
+  add_fieldcat 'MATDOC124_QTY'   'Material Doc 124 Qty'.
+  add_fieldcat 'MATDOC125_QTY'   'Material Doc 124'.
+  add_fieldcat 'QTY_125'         'Material Doc 125 Qty'.
+  add_fieldcat 'MBLNR_125'       'Material Doc 125'.
+  add_fieldcat 'FINAL_QTY'       'Final Qty'.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = sy-repid
+      i_save             = 'A'
+      it_fieldcat        = it_fieldcat
+    TABLES
+      t_outtab           = it_final
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+
+  IF sy-subrc <> 0.
+
+  ENDIF.

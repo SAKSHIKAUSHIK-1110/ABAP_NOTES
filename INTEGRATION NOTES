@@ -1,0 +1,176 @@
+SAP Integration Notes: E-Invoice & E-Way Bill 
+1. Fundamental Rules & Validation 
+Feature 	E-Invoice (IRN) 	E-Way Bill (EWB) 
+Duplicate Check 	Same Invoice No cannot be reused once IRN is generated. 	Same Invoice No can have multiple EWBs (if expired/cancelled). 
+Services 	Isservice = 'Y' (HSN starts with 99). 	Not Required for pure service cases. 
+B2C 	Currently not required for IRN. 	Required if value > ₹50,000. 
+Line Items 	Limit: 1000 items per JSON. 	No specific low limit like IRN. 
+Cancellations 	Must be reported to the Govt portal within 24 hours. 	Must be cancelled before movement or if details are wrong. 
+2. Transaction Categories & Logic 
+•	Export Cases: * State Code must be 97 (Other Territory) or 99 (Foreign). 
+o	KNA1-LAND1 must be populated. 
+o	Shipping Point = Last Port/Point of exit. 
+•	SEZ (Special Economic Zone): Always treated as IGST even if within the same state. No CGST/SGST. 
+•	Intra-State: standard CGST + SGST applies. 
+•	URP: Used for "Unregistered Person" in Bill-to/Ship-to fields. 
+  
+🚛 E-Way Bill Scenarios (Part A & Part B) 
+The E-Way bill is split into two segments to handle logistics flexibility: 
+•	Part A: Contains invoice details (HSN, Value, GSTIN). Generated when transporter ID is known but vehicle info is missing. 
+•	Part B: Contains Vehicle No. The EWB is only valid once Part B is generated. 
+•	Multi-Vehicle Functionality: SAP must support assigning multiple vehicles to a single invoice/EWB for bulk movements. 
+On-Road Issues: 
+•	Vehicle Breakdown: Use the Vehicle Update option on the portal. 
+•	Transporter Change: Use the Transporter Update option. 
+  
+🛠️ Technical Integration (ABAP/SAP) 
+Connectivity via SM59 
+To establish a handshake between SAP and the GSP (GST Suvidha Provider) like Mawai/Takshilla: 
+1.	T-Code SM59: Create an HTTP Connection to External Server (Type G). 
+2.	Configuration: * Maintain Target Host (URL) and Port. 
+o	Check Proxy/FTP settings if the server is behind a firewall. 
+o	Connection Test: Must return Status 200/201 for a stable link. 
+ABAP Coding Essentials 
+When calling the API, the following class is standard: 
+ABAP 
+" Creating the HTTP Client 
+cl_http_client=>create_by_destination( 
+  EXPORTING 
+    destination = 'Z_GSP_DESTINATION' " Defined in SM59 
+  IMPORTING 
+    client      = lo_http_client 
+). 
+ 
+" Technical Settings 
+lo_http_client->request->set_method( 'POST' ). 
+" Add JSON Payload here... 
+Data Handling Issues (Mawai/Takshilla) 
+•	Special Characters: Not allowed in Product Description. Use REPLACE ALL OCCURRENCES OF to clean data. 
+•	Value Mismatch: Always validate Item Total + Taxes == Header Total before triggering the JSON. 
+•	JSON Gaps: Ensure exportcountrycode is mapped; it is often missing in standard MI structures but mandatory for the Govt. 
+  
+⚠️ Known Issues & Solutions 
+•	The "Name" Column: The Govt portal sometimes lacks specific Name columns in Ship-to/Bill-to views. 
+o	Solution: Concatenate the Name into the Address or Bill-from/Ship-from strings within the JSON payload. 
+•	Delivery Challan: Use for movements other than sales (e.g., Job work, Stock Transfer where invoice isn't applicable). 
+•	Pincode Validation: Ensure the Pincode matches the State Code to avoid "Distance" calculation errors on the portal. 
+ 
+ 
+## 
+EWAYBILL IS NOT GENERATED FOR CREDIT MEMO CASE – VBTYP (O) . 
+ 
+ 
+ 
+DRAFT NOTES: 
+same invoice no  -> eway bill possible  
+same invoice no  -> einvoice not  possible 
+Information about cancellation should be informed to goverment  
+-----------EINVOICE-------------- 
+ 
+isservice = 'Y' -> service case 
+with pay without pay  
+URP -> UNregistered  
+ 
+Export /B2B ->kna1 land1 not declared  Export case  
+SEZ 
+special economic zone IGST  [ NO cgst sgst  ] 
+within state [only cgst sgst ] 
+ 
+Info given by Portal  
+ 
+0) IRN [ 64 character ]  
+              &  
+   Signed QR code [ 955 character ]  
+ 
+ 
+------EWAY BILL---------- 
+LIMIT 2-3 DAYS 
+goodsmvt after loading goods 
+not hsn starting with 99 no eway bill (service) 
+B2C  
+B2B 
+Export  
+limit 50,000 limit AOI all over india 
+ 
+Export / B2C :- 
+Bill to Part k resgister -> URP  
+in Export case statecode  will be 97/99  
+shipping point will be last shipping port/point   
+ 
+B2B bill to/ ship to  
+Transaction Type  field in GOVT PORTAL 
+Bill from :          Bill to : 
+Ship from :          Ship to : 
+ 
+DIS :- Bill from ship from  
+CNV :- All 4 case  
+ 
+ 
+Ewaybill  
+Transporter Details GSTIN/transporter ID filled then  Part A is filled  
+vehicle no  generated then Part B fully generated detailed 
+ 
+ 
+Reason for part A :- 
+companies have no info about transporter 
+ 
+ 
+ 
+----------scenario in Eway bill---------------  
+ 
+Goods dispatched then :- 
+ 
+Vehicle damage    :  Vehicle Update option  
+Transpoter change :  Transporter update  option  
+ 
+ 
+Product Description Field No special character allowed  
+----------in mawai we use:---------------- 
+server 1 : MI  
+server 2 : Takshilla  
+ 
+ 
+29 GSP registered in GOVT portal  
+ 
+value related issue -> check item total & check header total 
+ 
+Line item limit -> 1000 line item  
+ 
+HSN COde -> 8 digit / 6 digit (SA)| 
+Pincode  ->   
+einvway.gst.gov.in  
+ 
+------------einvoice issue in mawai : ----------- 
+MI 
+GSTIN -> 09 testing  CGST/SGST  
+EXPORT scenarion cases can't be checked in DEV  
+exportcountrycode -> not available in MI json but it is required in Govt port  
+------------------------------------------------------- 
+ 
+einvoice 
+ 
+ewaybill  
+ 
+ 
+ISSUE : 
+No name column in ship to bill to in govt portal 
+Solution : Add name into bill from ship from  
+ 
+Delivery Challan :  
+It is made when we send our  goods for more redefination 
+ 
+ 
+0) Multi vehicle Functionality in this we can  add multi vehicle in same invoice 
+ 
+Tcode : SM59  
+URL LISTED IN  
+SOAP & REST API 
+FTP/proxy same as RFC destination   
+connection test : to confirm stable connection 
+check technical settings for URL  
+groze :  
+ 
+class used  for URL:  
+cl_http_client=>create_by_destination 
+ 
+

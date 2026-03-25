@@ -1,5 +1,17 @@
   METHOD if_ex_workorder_update~before_update.(WORKORDER_UPDATE)
 
+""" at release method  - diff code 
+
+  method IF_EX_WORKORDER_UPDATE~AT_RELEASE.
+
+    DATA: lv_status TYPE char1.
+    CLEAR:lv_status.
+    lv_status  = 'X'.
+    EXPORT lv_status = lv_status TO MEMORY ID 'ZSTAT'.
+  endmethod.
+
+""
+
     TYPES: BEGIN OF ty_component,
              componentmaterial    TYPE string,
              componentdescription TYPE string,

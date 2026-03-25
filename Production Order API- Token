@@ -1,5 +1,49 @@
   METHOD if_ex_workorder_update~before_update.(WORKORDER_UPDATE)
 
+
+json :-
+{
+  "Plant": "3003",
+  "DestinationPlant": "",
+  "OrderNumber": "004000000159",
+  "OrderDate": "20260318",
+  "Material": "201100000003",
+  "MaterialDescription": "SFG-ALU-BRB-HEX-6262-Ø35-70-EXT",
+  "Productionversion": "",
+  "OrderQuantity": "2.000 ",
+  "Uom": "EA",
+  "Status": "RELEASED",
+  "Components": [
+    {
+      "Componentmaterial": "901000000002                            ",
+      "ComponentDescription": "ALU-BRB-HEX-6262-Ø35-EXT",
+      "Quantity": "0.210 ",
+      "Uom": "KG",
+      "heatcode": " "
+    },
+    {
+      "Componentmaterial": "906000000002                            ",
+      "ComponentDescription": "SCRAP-ALU-6082-Hexa",
+      "Quantity": "0.006 ",
+      "Uom": "KG",
+      "heatcode": " "
+    }
+  ],
+  "Operation": [
+    {
+      "Activity": "0010",
+      "ActivityDescription": "CUTTING OPERATION",
+      "WorkCenter": "PP03"
+    }
+  ]
+}
+
+
+
+"
+
+
+
 """ at release method  - diff code 
 
   method IF_EX_WORKORDER_UPDATE~AT_RELEASE.

@@ -1,0 +1,532 @@
+  METHOD if_ex_workorder_update~before_update.(WORKORDER_UPDATE)
+
+    TYPES: BEGIN OF ty_component,
+             componentmaterial    TYPE string,
+             componentdescription TYPE string,
+             quantity             TYPE string, "menge_d,
+             uom                  TYPE string,
+             heatcode             TYPE string,
+           END OF ty_component,
+
+           BEGIN OF ty_operation,
+             activity            TYPE string,
+             activitydescription TYPE string,
+             workcenter          TYPE string,
+           END OF ty_operation,
+
+           BEGIN OF ty_prod_order,
+             client_id           TYPE string,
+             message             TYPE string,
+             error               TYPE string,
+             plant               TYPE string,
+             destinationplant    TYPE string,
+             ordernumber         TYPE string,
+             orderdate           TYPE char10,
+             material            TYPE string,
+             materialdescription TYPE string,
+             productionversion   TYPE string,
+             orderquantity       TYPE string, "menge_d,
+             uom                 TYPE string,
+             status              TYPE string,
+             components          TYPE TABLE OF ty_component WITH EMPTY KEY,
+             operation           TYPE TABLE OF ty_operation WITH EMPTY KEY,
+           END OF ty_prod_order.
+
+
+    DATA: lv_token     TYPE string,
+          lv_clint     TYPE string,
+          p_error_msg  TYPE string,
+          ls_token_tab TYPE ztoken_managment,
+          lo_http      TYPE REF TO cl_http_client,
+          lv_json      TYPE string,
+          lv_qty       TYPE char6,
+          lv_status    TYPE char1,
+          ls_payload   TYPE ty_prod_order.
+
+    " API Data Declaration
+    DATA: json                    TYPE string,
+          auth_token              TYPE string,
+          error_msg               TYPE string,
+          client_id               TYPE string,
+          status,
+          lv_url_get              TYPE string,
+          lo_http_client          TYPE REF TO if_http_client,
+          lv_parameter            TYPE string,
+          lv_content_length_value TYPE i,
+          lv_http_return_code     TYPE i,
+          lv_http_error_descr     TYPE string,
+          lv_xml_result_str       TYPE string,
+          lt_mapping              TYPE /ui2/cl_json=>name_mappings.
+    TYPES: BEGIN OF ty_auth_clientid,
+             _id  TYPE string,
+             id   TYPE string,
+             name TYPE string,
+             logo TYPE string,
+           END OF ty_auth_clientid.
+
+    TYPES: BEGIN OF ty_auth_resp,
+             _id          TYPE string,
+             clientid     TYPE string,
+             _clientid    TYPE ty_auth_clientid,
+             username     TYPE string,
+             fullname     TYPE string,
+             email        TYPE string,
+             image        TYPE string,
+             token        TYPE string,
+             tokenexpires TYPE string,
+             admin        TYPE string,
+             superadmin   TYPE string,
+           END OF ty_auth_resp.
+
+    TYPES: BEGIN OF ty_auth_error,
+             statuscode TYPE string,
+             message    TYPE string,
+             error      TYPE string,
+           END OF ty_auth_error.
+
+    DATA: wa_auth_resp  TYPE ty_auth_resp,
+*          lv_token      TYPE string,
+          wa_auth_error TYPE ty_auth_error.
+
+    ""15
+    DATA: ls_prod_order TYPE ty_prod_order,
+          ls_component  TYPE ty_component,
+          count         TYPE sy-tabix,
+          ls_operation  TYPE ty_operation.
+
+    IMPORT lv_status = lv_status FROM MEMORY ID 'ZSTAT'.
+    FREE MEMORY ID 'ZSTAT'.
+
+**    IF sy-uname = 'C_MW_TC1'.
+    IF lv_status = 'X'.
+
+      SELECT *
+      FROM ztoken_managment
+      ORDER BY created_date DESCENDING, created_time DESCENDING
+      INTO @ls_token_tab
+      UP TO 1 ROWS.
+      ENDSELECT.
+
+      IF sy-subrc = 0 .
+
+        DATA(lv_timestamp_now) = sy-uzeit.
+        DATA(lv_diff) = sy-uzeit - ls_token_tab-created_time.
+
+
+**        IF ls_token_tab-access_token IS INITIAL OR ls_token_tab-created_date < sy-datum OR lv_diff > 39600.
+        IF ls_token_tab-access_token IS NOT INITIAL AND ls_token_tab-created_date LE sy-datum AND lv_diff LE 39600.  "NOT
+
+*          IF ls_token_tab-access_token IS INITIAL OR ls_token_tab-created_date <> sy-datum OR lv_diff > 39600.
+*********************************************************************************************************
+          "Token Generate
+*********************************************************************************************************
+          lv_url_get = |https://pel.quadworld.in/auth/login|.
+          CALL METHOD cl_http_client=>create_by_url
+            EXPORTING
+              url                = lv_url_get
+            IMPORTING
+              client             = lo_http_client
+            EXCEPTIONS
+              argument_not_found = 1
+              plugin_not_active  = 2
+              internal_error     = 3
+              OTHERS             = 4.
+
+          " set_method to set up the HTTP Post
+          CALL METHOD lo_http_client->request->set_method
+            EXPORTING
+              method = 'POST'.
+
+          lo_http_client->request->set_header_field(
+            name  = 'Content-Type'
+            value = 'application/json; charset=UTF-8' ).
+
+          json = '{"username": "sunil.marwaha@victora.co.in","password": "sunil@123"}'.
+          lv_content_length_value = strlen( json ).
+
+          CALL METHOD lo_http_client->request->if_http_entity~set_cdata
+            EXPORTING
+              data   = json
+              length = lv_content_length_value
+              offset = 0.
+
+          " Send the HTTP Post
+          CALL METHOD lo_http_client->send
+            EXCEPTIONS
+              http_communication_failure = 1
+              http_invalid_state         = 2.
+
+          " Disable SAP's pop-up for user id and password
+**        lo_http_client->propertytype_logon_popup = lo_http_client->co_disabled. "19
+
+          " Receive and Read the Response
+          CALL METHOD lo_http_client->receive
+            EXCEPTIONS
+              http_communication_failure = 1
+              http_invalid_state         = 2
+              http_processing_failed     = 3.
+
+          " Get the HTTP return code from the HTTP POST:
+          CALL METHOD lo_http_client->response->get_status
+            IMPORTING
+              code   = lv_http_return_code
+              reason = lv_http_error_descr.
+
+          " Refresh the Request after each POST:
+          CALL METHOD lo_http_client->refresh_request(
+            EXCEPTIONS
+              http_action_failed = 1
+              OTHERS             = 2 ).
+
+          " Write the data received back from the POST to the screen:
+          lv_xml_result_str = lo_http_client->response->get_cdata( ).
+
+          " For Success response
+          /ui2/cl_json=>deserialize( EXPORTING json = lv_xml_result_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                     CHANGING data = wa_auth_resp ).
+
+          IF wa_auth_resp IS INITIAL.
+            " For Error response
+            /ui2/cl_json=>deserialize( EXPORTING json = lv_xml_result_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                       CHANGING data = wa_auth_error ).
+            IF wa_auth_error IS NOT INITIAL.
+              p_error_msg = |{ wa_auth_error-message } - { wa_auth_error-error }|.
+            ELSE.
+              p_error_msg = |Authentication API Failed|.
+            ENDIF.
+          ELSE.
+            lv_token = wa_auth_resp-token.
+            lv_clint = wa_auth_resp-clientid.
+            ls_token_tab-client_id = lv_clint .
+            ls_token_tab-access_token = lv_token .
+            ls_token_tab-created_date = sy-datum .
+            ls_token_tab-created_time = sy-uzeit .
+            MODIFY ztoken_managment FROM ls_token_tab.
+            IF sy-subrc = 0 .
+
+            ENDIF.
+          ENDIF.
+          CLEAR: wa_auth_resp, wa_auth_error, lv_url_get, lo_http_client, json, lv_content_length_value,
+                 lv_http_return_code, lv_http_error_descr, lv_xml_result_str, ls_token_tab.
+        ELSE.
+          lv_token = ls_token_tab-access_token.
+          lv_clint = ls_token_tab-client_id.
+        ENDIF.
+      ELSE.
+        lv_url_get = |https://pel.quadworld.in/auth/login|.
+        CALL METHOD cl_http_client=>create_by_url
+          EXPORTING
+            url                = lv_url_get
+          IMPORTING
+            client             = lo_http_client
+          EXCEPTIONS
+            argument_not_found = 1
+            plugin_not_active  = 2
+            internal_error     = 3
+            OTHERS             = 4.
+
+        " set_method to set up the HTTP Post
+        CALL METHOD lo_http_client->request->set_method
+          EXPORTING
+            method = 'POST'.
+
+        lo_http_client->request->set_header_field(
+          name  = 'Content-Type'
+          value = 'application/json; charset=UTF-8' ).
+
+        json = '{"username": "sunil.marwaha@victora.co.in","password": "sunil@123"}'.
+        lv_content_length_value = strlen( json ).
+
+        CALL METHOD lo_http_client->request->if_http_entity~set_cdata
+          EXPORTING
+            data   = json
+            length = lv_content_length_value
+            offset = 0.
+
+        " Send the HTTP Post
+        CALL METHOD lo_http_client->send
+          EXCEPTIONS
+            http_communication_failure = 1
+            http_invalid_state         = 2.
+
+        " Disable SAP's pop-up for user id and password
+**        lo_http_client->propertytype_logon_popup = lo_http_client->co_disabled. "19
+
+        " Receive and Read the Response
+        CALL METHOD lo_http_client->receive
+          EXCEPTIONS
+            http_communication_failure = 1
+            http_invalid_state         = 2
+            http_processing_failed     = 3.
+
+        " Get the HTTP return code from the HTTP POST:
+        CALL METHOD lo_http_client->response->get_status
+          IMPORTING
+            code   = lv_http_return_code
+            reason = lv_http_error_descr.
+
+        " Refresh the Request after each POST:
+        CALL METHOD lo_http_client->refresh_request(
+          EXCEPTIONS
+            http_action_failed = 1
+            OTHERS             = 2 ).
+
+        " Write the data received back from the POST to the screen:
+        lv_xml_result_str = lo_http_client->response->get_cdata( ).
+
+        " For Success response
+        /ui2/cl_json=>deserialize( EXPORTING json = lv_xml_result_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                   CHANGING data = wa_auth_resp ).
+
+        IF wa_auth_resp IS INITIAL.
+          " For Error response
+          /ui2/cl_json=>deserialize( EXPORTING json = lv_xml_result_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                     CHANGING data = wa_auth_error ).
+          IF wa_auth_error IS NOT INITIAL.
+            p_error_msg = |{ wa_auth_error-message } - { wa_auth_error-error }|.
+          ELSE.
+            p_error_msg = |Authentication API Failed|.
+          ENDIF.
+        ELSE.
+          lv_token = wa_auth_resp-token.
+          lv_clint = wa_auth_resp-clientid.
+          ls_token_tab-client_id = lv_clint .
+          ls_token_tab-access_token = lv_token .
+          ls_token_tab-created_date = sy-datum .
+          ls_token_tab-created_time = sy-uzeit .
+          MODIFY ztoken_managment FROM ls_token_tab.
+          IF sy-subrc = 0 .
+
+          ENDIF.
+        ENDIF.
+      ENDIF.
+*********************************************************************************************************
+      DATA: lv_maktx TYPE maktx.
+
+      READ TABLE it_header INTO DATA(ls_header) INDEX 1.
+      IF sy-subrc = 0.
+
+        SELECT SINGLE maktx
+          INTO @lv_maktx
+          FROM makt
+          WHERE matnr = @ls_header-plnbez
+          AND spras = @sy-langu.
+
+*        ls_prod_order-clientid   = lv_clint.
+        ls_prod_order-plant      = ls_header-werks.
+        ls_prod_order-destinationplant = ''.
+        ls_prod_order-ordernumber = ls_header-aufnr.
+        ls_prod_order-orderdate  = ls_header-gltrp.
+        ls_prod_order-material   = ls_header-plnbez.
+        ls_prod_order-material = |{ ls_prod_order-material ALPHA = OUT }|.
+        ls_prod_order-materialdescription = lv_maktx.
+        ls_prod_order-orderquantity = ls_header-bmenge.
+        ls_prod_order-uom = ls_header-bmeins.
+        ls_prod_order-status = 'RELEASED'.
+
+      ENDIF.
+
+      READ TABLE it_item INTO DATA(ls_item) INDEX 1.
+      IF sy-subrc = 0.
+        ls_prod_order-productionversion = ls_item-verid.
+      ENDIF.
+
+      DATA: lv_orderdate TYPE string.
+
+      lv_orderdate = |{ ls_header-gltrp DATE = ISO }|.
+
+      lv_orderdate = |{ ls_header-gltrp+0(4) }-{ ls_header-gltrp+4(2) }-{ ls_header-gltrp+6(2) }|.
+
+      "JSON
+      CONCATENATE '{'
+        '"Plant": "' ls_prod_order-plant '",'
+        '"DestinationPlant": "",'
+        '"OrderNumber": "' ls_prod_order-ordernumber '",'
+        '"OrderDate": "' lv_orderdate '",'
+        '"Material": "' ls_prod_order-material '",'
+        '"MaterialDescription": "' ls_prod_order-materialdescription '",'
+        '"Productionversion": "' ls_prod_order-productionversion'",'
+        '"OrderQuantity": "' ls_prod_order-orderquantity '",'
+        '"Uom": "' ls_prod_order-uom '",'
+        '"Status": "' ls_prod_order-status '",'
+       '"Components": [' INTO lv_json.
+      DATA(temp) = it_component[].
+      SORT temp BY matnr.
+      DESCRIBE TABLE temp LINES DATA(line).
+      LOOP AT temp ASSIGNING FIELD-SYMBOL(<fx>).
+        lv_qty = <fx>-bdmng.
+        count = count + 1.
+        CONCATENATE lv_json
+           '{'
+             '"Componentmaterial": "' <fx>-matnr'",'
+             '"ComponentDescription": "' <fx>-maktx '",'
+             '"Quantity": "' lv_qty'",'
+             '"Uom": "' <fx>-meins '",'
+             '"heatcode": ""'
+             INTO lv_json.
+        IF line = count.
+          CONCATENATE lv_json '} ],' '"Operation": [' INTO lv_json.
+        ELSE.
+          CONCATENATE lv_json '},' INTO lv_json.
+        ENDIF.
+      ENDLOOP.
+      DATA(temm) = it_operation[].
+      DESCRIBE TABLE temm LINES DATA(cc).
+      CLEAR count .
+      LOOP AT temm ASSIGNING FIELD-SYMBOL(<lka>).
+        count = count + 1.
+        CONCATENATE lv_json
+        '{'
+          '"Activity": "' <lka>-vornr '",'
+          '"ActivityDescription": "' <lka>-ltxa1 '",'
+          '"WorkCenter": "' <lka>-steus '"'
+           INTO lv_json.
+        IF cc = count.
+          CONCATENATE lv_json '}' INTO lv_json.
+        ELSE.
+          CONCATENATE lv_json '},' INTO lv_json.
+        ENDIF.
+      ENDLOOP.
+      CONCATENATE lv_json
+      ']'
+    '}' INTO lv_json.
+
+      DATA lv_xjson TYPE xstring.
+
+      lv_xjson = cl_abap_codepage=>convert_to( source = lv_json ).
+
+*********************************************************************************************************
+      lv_url_get = |https://pel.quadworld.in/production-order|.
+      CALL METHOD cl_http_client=>create_by_url
+        EXPORTING
+          url                = lv_url_get
+        IMPORTING
+          client             = lo_http_client
+        EXCEPTIONS
+          argument_not_found = 1
+          plugin_not_active  = 2
+          internal_error     = 3
+          OTHERS             = 4.
+
+      lo_http_client->request->set_method( 'POST' ).
+
+      lo_http_client->request->set_header_field(
+        name  = 'Authorization'
+        value = |Bearer { lv_token }| ).
+
+      lo_http_client->request->set_header_field(
+        name  = 'Content-Type'
+        value = 'application/json' ).
+
+      lo_http_client->request->set_cdata( lv_json ).  "lv_json
+
+      " Send the HTTP Post
+      CALL METHOD lo_http_client->send
+        EXCEPTIONS
+          http_communication_failure = 1
+          http_invalid_state         = 2.
+
+      " Disable SAP's pop-up for user id and password
+**      lo_http_client->propertytype_logon_popup = lo_http_client->co_disabled.  "19
+
+      " Receive and Read the Response
+      CALL METHOD lo_http_client->receive
+        EXCEPTIONS
+          http_communication_failure = 1
+          http_invalid_state         = 2
+          http_processing_failed     = 3.
+
+      " Get the HTTP return code from the HTTP POST:
+      CALL METHOD lo_http_client->response->get_status
+        IMPORTING
+          code   = lv_http_return_code
+          reason = lv_http_error_descr.
+
+      " Refresh the Request after each POST:
+      CALL METHOD lo_http_client->refresh_request(
+        EXCEPTIONS
+          http_action_failed = 1
+          OTHERS             = 2 ).
+
+      " Write the data received back from the POST to the screen:
+      lv_xml_result_str = lo_http_client->response->get_cdata( ).
+
+
+      "ZAPI_RESPONSE
+
+      TYPES: BEGIN OF ty_api_response,
+               statuscode TYPE string,
+               message    TYPE string,
+               error      TYPE string,
+               client_id  TYPE string,
+             END OF ty_api_response.
+
+      DATA: wa_api_resp TYPE ty_api_response.
+
+      " For Success response
+      /ui2/cl_json=>deserialize( EXPORTING json = lv_xml_result_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                 CHANGING data = wa_api_resp ).
+
+
+
+      DATA(lv_date) = lv_orderdate.
+      REPLACE ALL OCCURRENCES OF '.' IN lv_date WITH ''.
+      REPLACE ALL OCCURRENCES OF '-' IN lv_date WITH ''.
+
+      lv_orderdate = lv_date.
+
+      "ZAPI_RESPONSE
+      DATA: ls_db TYPE zstr_api_resp.
+
+      ls_db-order_no    = ls_header-aufnr.
+      ls_db-status_code = lv_http_return_code.
+*        ls_db-message     = wa_api_resp-message.
+      ls_db-error       = wa_api_resp-error.
+      ls_db-response_id = wa_api_resp-client_id.
+      ls_db-created_on  = sy-datum.
+      ls_db-created_at  = sy-uzeit.
+      ls_db-plant             = ls_prod_order-plant.
+      ls_db-destinationplant  = ' '.
+      ls_db-orderdate          = lv_orderdate.
+      ls_db-material           = ls_prod_order-material.
+      ls_db-materialdescription = ls_prod_order-materialdescription.
+      ls_db-productionversion  = ls_prod_order-productionversion.
+      ls_db-orderquantity      = ls_prod_order-orderquantity.
+      ls_db-uom                = ls_prod_order-uom.
+      ls_db-componentmaterial   = <fx>-matnr.
+      ls_db-componentdescription = <fx>-maktx.
+      ls_db-quantity            = lv_qty.
+      ls_db-uom                = <fx>-meins.
+      ls_db-heatcode            = ' '.
+      ls_db-activity            = <lka>-vornr.
+      ls_db-activitydescription = <lka>-ltxa1.
+      ls_db-workcenter          = <lka>-steus.
+      ls_db-message            = 'Data Saved Successfully'.
+
+      DATA: ls_table TYPE zapi_response.
+
+      MOVE-CORRESPONDING ls_db TO ls_table.
+
+      INSERT zapi_response FROM ls_table.
+
+      IF sy-subrc = 0.
+        MESSAGE ' Data Saved Successfully' TYPE 'S' .
+
+      ELSEIF wa_api_resp-error IS NOT INITIAL.
+        ls_db-order_no    = ls_header-aufnr.
+        ls_db-status_code = lv_http_return_code.
+        ls_db-error       = wa_api_resp-error.
+        ls_db-message       = wa_api_resp-message.
+        ls_db-response_id = wa_api_resp-client_id.
+        ls_db-created_on  = sy-datum.
+        ls_db-created_at  = sy-uzeit.
+
+      ENDIF.
+      IF ls_db-response_id IS NOT INITIAL OR ls_db-error IS NOT INITIAL.
+        INSERT zapi_response FROM ls_table.
+      ENDIF.
+
+
+    ENDIF.
+
+  ENDMETHOD.
